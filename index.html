@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pizza Lab Pro</title>
+
+    <!-- PWA -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#6366f1">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Pizza Lab">
+    <link rel="apple-touch-icon" href="icon.svg">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: #0f172a;
+            background-image:
+                radial-gradient(at 0% 0%, hsla(253,16%,7%,1) 0, transparent 50%),
+                radial-gradient(at 50% 0%, hsla(225,39%,30%,1) 0, transparent 50%),
+                radial-gradient(at 100% 0%, hsla(339,49%,30%,1) 0, transparent 50%);
+            color: white;
+            min-height: 100vh;
+            margin: 0;
+            padding: 0;
+        }
+
+        .glass-card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: none;
+            border-radius: 0;
+            box-shadow: none;
+            width: 100%;
+            min-height: 100vh;
+            max-width: none;
+            padding: 20px;
+            position: relative;
+            box-sizing: border-box;
+        }
+
+        .content-wrapper {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .blob {
+            position: fixed;
+            filter: blur(60px);
+            z-index: -1;
+            opacity: 0.5;
+        }
+
+        .input-group {
+            position: relative;
+            margin-bottom: 1rem;
+        }
+        .input-glass {
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: white;
+            border-radius: 12px;
+            padding: 12px 16px;
+            width: 100%;
+            transition: all 0.3s ease;
+            font-size: 0.95rem;
+            box-sizing: border-box;
+        }
+        .input-glass:focus {
+            outline: none;
+            border-color: #8b5cf6;
+            background: rgba(0, 0, 0, 0.4);
+            box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.3);
+        }
+        .input-label {
+            font-size: 0.8rem;
+            color: #94a3b8;
+            margin-bottom: 4px;
+            display: block;
+            font-weight: 500;
+        }
+
+        /* Tabs — 4 colonne */
+        .tabs {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            background: rgba(0, 0, 0, 0.2);
+            padding: 4px;
+            border-radius: 16px;
+            margin-bottom: 1.5rem;
+            gap: 2px;
+        }
+        .tab {
+            text-align: center;
+            padding: 10px 4px;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.78rem;
+            color: #94a3b8;
+            font-weight: 600;
+        }
+        .tab.active {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        /* Buttons */
+        .btn-calc {
+            background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
+            color: white;
+            border: none;
+            padding: 18px;
+            border-radius: 16px;
+            width: 100%;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin-top: 1.5rem;
+            box-shadow: 0 4px 15px rgba(168, 85, 247, 0.4);
+        }
+        .btn-calc:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(168, 85, 247, 0.6); }
+        .btn-calc:active { transform: translateY(0); }
+
+        .btn-save {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            border: none;
+            padding: 16px;
+            border-radius: 16px;
+            width: 100%;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin-top: 10px;
+            box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);
+        }
+        .btn-save:hover { transform: translateY(-2px); }
+        .btn-save:disabled { opacity: 0.6; transform: none; cursor: default; }
+
+        .btn-danger {
+            background: rgba(239, 68, 68, 0.15);
+            color: #f87171;
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            padding: 8px 14px;
+            border-radius: 10px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-danger:hover { background: rgba(239, 68, 68, 0.25); }
+
+        /* Results */
+        .results-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            margin-top: 1.5rem;
+            animation: slideUp 0.4s ease-out;
+        }
+        .result-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            padding: 16px;
+            border-radius: 16px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+        }
+        .result-card.full-width { grid-column: span 2; }
+        .result-card.highlight { background: rgba(16, 185, 129, 0.1); border-color: rgba(16, 185, 129, 0.3); }
+        .result-card.hydration { background: rgba(56, 189, 248, 0.1); border-color: rgba(56, 189, 248, 0.3); }
+        .res-label { font-size: 0.75rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+        .res-value { font-size: 1.2rem; font-weight: 700; color: white; }
+        .res-unit { font-size: 0.85rem; color: #64748b; font-weight: 400; }
+        .res-icon { font-size: 1.4rem; margin-bottom: 6px; }
+
+        /* Storico */
+        .day-section { margin-bottom: 20px; }
+        .day-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .day-label { font-size: 0.85rem; font-weight: 600; color: #a855f7; }
+        .day-total {
+            background: rgba(168, 85, 247, 0.15);
+            color: #c084fc;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        .history-entry {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.07);
+            border-radius: 12px;
+            padding: 12px 14px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+        .entry-left { display: flex; align-items: center; gap: 12px; }
+        .entry-icon { font-size: 1.5rem; }
+        .entry-type { font-size: 0.9rem; font-weight: 600; }
+        .entry-time { font-size: 0.72rem; color: #64748b; }
+        .entry-right { display: flex; align-items: center; gap: 10px; }
+        .entry-palline { text-align: right; }
+        .entry-count { font-size: 1.1rem; font-weight: 700; }
+        .entry-weight { font-size: 0.7rem; color: #64748b; }
+        .btn-delete { background: none; border: none; cursor: pointer; font-size: 1rem; color: #475569; padding: 4px; transition: color 0.2s; }
+        .btn-delete:hover { color: #f87171; }
+        .empty-state { text-align: center; padding: 60px 20px; color: #475569; }
+        .empty-state .empty-icon { font-size: 3rem; margin-bottom: 12px; }
+        .storico-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .hidden { display: none; }
+        .pb-safe { padding-bottom: calc(1.5rem + env(safe-area-inset-bottom)); }
+    </style>
+</head>
+<body>
+
+    <div class="blob" style="top: -10%; left: -10%; width: 300px; height: 300px; background: #4c1d95;"></div>
+    <div class="blob" style="bottom: 10%; right: -5%; width: 250px; height: 250px; background: #be185d;"></div>
+
+    <div class="glass-card pb-safe">
+        <div class="content-wrapper">
+
+            <!-- Header -->
+            <div class="flex justify-between items-center mb-6 pt-2">
+                <div>
+                    <h1 class="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400">Pizza Lab</h1>
+                    <p class="text-xs text-gray-400">Professional Calculator</p>
+                </div>
+            </div>
+
+            <!-- Tabs (4) -->
+            <div class="tabs">
+                <div class="tab active" onclick="switchTab('solina', this)">Solina</div>
+                <div class="tab" onclick="switchTab('farro', this)">Farro</div>
+                <div class="tab" onclick="switchTab('romano', this)">Romano</div>
+                <div class="tab" onclick="switchTab('storico', this)">📋 Storico</div>
+            </div>
+
+            <!-- SOLINA -->
+            <div id="recipe-solina" class="recipe-content">
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="input-group">
+                        <label class="input-label">🌾 Solina (kg)</label>
+                        <input type="number" id="solina-kg" value="3.5" step="0.1" class="input-glass">
+                    </div>
+                    <div class="input-group">
+                        <label class="input-label">🌾 Caputo (kg)</label>
+                        <input type="number" id="caputo-kg" value="3.6" step="0.1" class="input-glass">
+                    </div>
+                    <div class="input-group">
+                        <label class="input-label">💧 Acqua (kg)</label>
+                        <input type="number" id="acqua-kg" value="4.5" step="0.1" class="input-glass">
+                    </div>
+                    <div class="input-group">
+                        <label class="input-label">🧂 Sale (g)</label>
+                        <input type="number" id="sale-g" value="260" step="1" class="input-glass">
+                    </div>
+                    <div class="input-group col-span-2">
+                        <label class="input-label">🍞 Lievito (g)</label>
+                        <input type="number" id="lievito-g" value="50" step="1" class="input-glass">
+                    </div>
+                </div>
+                <div class="mt-6 pt-4 border-t border-white/10">
+                    <label class="input-label text-center mb-2" style="font-size: 1rem; color: #a855f7;">🎯 Obiettivo: Palline (290g)</label>
+                    <input type="number" id="target-solina" placeholder="Es. 55" class="input-glass text-center text-xl font-bold" style="border-color: #a855f7; padding: 16px;">
+                </div>
+                <button class="btn-calc" onclick="calculate('solina')">Calcola Ricetta</button>
+            </div>
+
+            <!-- FARRO -->
+            <div id="recipe-farro" class="recipe-content hidden">
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="input-group">
+                        <label class="input-label">🌾 Farro (kg)</label>
+                        <input type="number" id="farro-kg" value="1.5" step="0.1" class="input-glass">
+                    </div>
+                    <div class="input-group">
+                        <label class="input-label">🌾 Solina (kg)</label>
+                        <input type="number" id="solina-farro-kg" value="1.9" step="0.1" class="input-glass">
+                    </div>
+                    <div class="input-group">
+                        <label class="input-label">🌾 Caputo (kg)</label>
+                        <input type="number" id="caputo-farro-kg" value="3.4" step="0.1" class="input-glass">
+                    </div>
+                    <div class="input-group">
+                        <label class="input-label">💧 Acqua (kg)</label>
+                        <input type="number" id="acqua-farro-kg" value="4.5" step="0.1" class="input-glass">
+                    </div>
+                    <div class="input-group">
+                        <label class="input-label">🧂 Sale (g)</label>
+                        <input type="number" id="sale-farro-g" value="260" step="1" class="input-glass">
+                    </div>
+                    <div class="input-group">
+                        <label class="input-label">🍞 Lievito (g)</label>
+                        <input type="number" id="lievito-farro-g" value="50" step="1" class="input-glass">
+                    </div>
+                </div>
+                <div class="mt-6 pt-4 border-t border-white/10">
+                    <label class="input-label text-center mb-2" style="font-size: 1rem; color: #a855f7;">🎯 Obiettivo: Palline (290g)</label>
+                    <input type="number" id="target-farro" placeholder="Es. 55" class="input-glass text-center text-xl font-bold" style="border-color: #a855f7; padding: 16px;">
+                </div>
+                <button class="btn-calc" onclick="calculate('farro')">Calcola Ricetta</button>
+            </div>
+
+            <!-- ROMANO -->
+            <div id="recipe-romano" class="recipe-content hidden">
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="input-group">
+                        <label class="input-label">🍕 Farina Blu (kg)</label>
+                        <input type="number" id="farina-blu-kg" value="18" step="0.1" class="input-glass">
+                    </div>
+                    <div class="input-group">
+                        <label class="input-label">💧 Acqua (kg)</label>
+                        <input type="number" id="acqua-romano-kg" value="9.4" step="0.1" class="input-glass">
+                    </div>
+                    <div class="input-group">
+                        <label class="input-label">🧂 Sale (g)</label>
+                        <input type="number" id="sale-romano-g" value="550" step="1" class="input-glass">
+                    </div>
+                    <div class="input-group">
+                        <label class="input-label">🍬 Zucchero (g)</label>
+                        <input type="number" id="zucchero-g" value="200" step="1" class="input-glass">
+                    </div>
+                    <div class="input-group">
+                        <label class="input-label">🍞 Lievito (g)</label>
+                        <input type="number" id="lievito-romano-g" value="40" step="1" class="input-glass">
+                    </div>
+                    <div class="input-group">
+                        <label class="input-label">🫒 Olio (kg)</label>
+                        <input type="number" id="olio-oliva-kg" value="1" step="0.1" class="input-glass">
+                    </div>
+                </div>
+                <div class="mt-6 pt-4 border-t border-white/10">
+                    <label class="input-label text-center mb-2" style="font-size: 1rem; color: #a855f7;">🎯 Obiettivo: Palline (190g)</label>
+                    <input type="number" id="target-romano" placeholder="Es. 55" class="input-glass text-center text-xl font-bold" style="border-color: #a855f7; padding: 16px;">
+                </div>
+                <button class="btn-calc" onclick="calculate('romano')">Calcola Ricetta</button>
+            </div>
+
+            <!-- STORICO -->
+            <div id="recipe-storico" class="recipe-content hidden">
+                <div class="storico-header">
+                    <span class="text-sm font-semibold text-gray-300">Impasti registrati</span>
+                    <button class="btn-danger" onclick="clearAll()">🗑 Cancella tutto</button>
+                </div>
+                <div id="storico-list"></div>
+            </div>
+
+            <!-- RESULTS -->
+            <div id="results-container" class="hidden"></div>
+
+        </div>
+    </div>
+
+    <script>
+        // ── PWA Service Worker ──────────────────────────────────────────
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('./sw.js').catch(() => {});
+        }
+
+        // ── State ───────────────────────────────────────────────────────
+        let currentCalc = null;
+
+        // ── Tab switching ───────────────────────────────────────────────
+        function switchTab(recipe, btn) {
+            document.querySelectorAll('.recipe-content').forEach(el => el.classList.add('hidden'));
+            document.getElementById(`recipe-${recipe}`).classList.remove('hidden');
+            document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
+            btn.classList.add('active');
+
+            const results = document.getElementById('results-container');
+            results.classList.add('hidden');
+            results.innerHTML = '';
+            currentCalc = null;
+
+            if (recipe === 'storico') renderStorico();
+        }
+
+        // ── Calculate ───────────────────────────────────────────────────
+        function calculate(type) {
+            let data = {}, ballWeight = 0, targetCount = 0, totalFlour = 0, typeName = '';
+
+            if (type === 'solina') {
+                typeName = 'Solina';
+                ballWeight = 290;
+                targetCount = parseFloat(document.getElementById('target-solina').value);
+                const solina = parseFloat(document.getElementById('solina-kg').value);
+                const caputo = parseFloat(document.getElementById('caputo-kg').value);
+                data = {
+                    'Solina':  { val: solina, unit: 'kg', icon: '🌾' },
+                    'Caputo':  { val: caputo, unit: 'kg', icon: '🌾' },
+                    'Acqua':   { val: parseFloat(document.getElementById('acqua-kg').value), unit: 'kg', icon: '💧' },
+                    'Sale':    { val: parseFloat(document.getElementById('sale-g').value),   unit: 'g',  icon: '🧂' },
+                    'Lievito': { val: parseFloat(document.getElementById('lievito-g').value), unit: 'g', icon: '🍞' }
+                };
+                totalFlour = solina + caputo;
+
+            } else if (type === 'farro') {
+                typeName = 'Farro';
+                ballWeight = 290;
+                targetCount = parseFloat(document.getElementById('target-farro').value);
+                const farro  = parseFloat(document.getElementById('farro-kg').value);
+                const solina = parseFloat(document.getElementById('solina-farro-kg').value);
+                const caputo = parseFloat(document.getElementById('caputo-farro-kg').value);
+                data = {
+                    'Farro':   { val: farro,  unit: 'kg', icon: '🌾' },
+                    'Solina':  { val: solina, unit: 'kg', icon: '🌾' },
+                    'Caputo':  { val: caputo, unit: 'kg', icon: '🌾' },
+                    'Acqua':   { val: parseFloat(document.getElementById('acqua-farro-kg').value), unit: 'kg', icon: '💧' },
+                    'Sale':    { val: parseFloat(document.getElementById('sale-farro-g').value),   unit: 'g',  icon: '🧂' },
+                    'Lievito': { val: parseFloat(document.getElementById('lievito-farro-g').value), unit: 'g', icon: '🍞' }
+                };
+                totalFlour = farro + solina + caputo;
+
+            } else if (type === 'romano') {
+                typeName = 'Romano';
+                ballWeight = 190;
+                targetCount = parseFloat(document.getElementById('target-romano').value);
+                const farinaBlu = parseFloat(document.getElementById('farina-blu-kg').value);
+                data = {
+                    'Farina Blu': { val: farinaBlu, unit: 'kg', icon: '🍕' },
+                    'Acqua':      { val: parseFloat(document.getElementById('acqua-romano-kg').value),  unit: 'kg', icon: '💧' },
+                    'Sale':       { val: parseFloat(document.getElementById('sale-romano-g').value),    unit: 'g',  icon: '🧂' },
+                    'Zucchero':   { val: parseFloat(document.getElementById('zucchero-g').value),       unit: 'g',  icon: '🍬' },
+                    'Lievito':    { val: parseFloat(document.getElementById('lievito-romano-g').value), unit: 'g',  icon: '🍞' },
+                    'Olio':       { val: parseFloat(document.getElementById('olio-oliva-kg').value),    unit: 'kg', icon: '🫒' }
+                };
+                totalFlour = farinaBlu;
+            }
+
+            if (!targetCount || targetCount <= 0) { alert('Inserisci un numero di palline valido!'); return; }
+
+            let currentTotalKg = 0;
+            for (let k in data) {
+                let v = data[k].val;
+                if (data[k].unit === 'g') v /= 1000;
+                currentTotalKg += v;
+            }
+            const targetTotalKg = (targetCount * ballWeight) / 1000;
+            const factor = targetTotalKg / currentTotalKg;
+
+            // Save state for the save button
+            currentCalc = { type: typeName, palline: targetCount, ballWeight };
+
+            // Render results
+            const container = document.getElementById('results-container');
+            let html = '<div class="results-grid">';
+
+            const waterVal = data['Acqua'].val;
+            if (totalFlour > 0 && waterVal > 0) {
+                const hyd = ((waterVal / totalFlour) * 100).toFixed(1);
+                html += `
+                    <div class="result-card full-width hydration">
+                        <div class="res-icon">💧</div>
+                        <div class="res-label" style="color:#38bdf8;">Idratazione</div>
+                        <div class="res-value" style="color:#38bdf8;">${hyd}<span class="res-unit">%</span></div>
+                    </div>`;
+            }
+
+            for (let k in data) {
+                const scaled = data[k].val * factor;
+                const displayVal = data[k].unit === 'kg' ? scaled.toFixed(2) : Math.round(scaled);
+                html += `
+                    <div class="result-card">
+                        <div class="res-icon">${data[k].icon}</div>
+                        <div class="res-label">${k}</div>
+                        <div class="res-value">${displayVal} <span class="res-unit">${data[k].unit}</span></div>
+                    </div>`;
+            }
+
+            html += `
+                <div class="result-card full-width highlight">
+                    <div class="res-label" style="color:#a7f3d0;">Peso Totale Impasto</div>
+                    <div class="res-value" style="color:#34d399;font-size:1.4rem;">${Math.round(targetTotalKg * 1000)} <span class="res-unit">g</span></div>
+                </div>
+            </div>
+            <button id="btn-save" class="btn-save" onclick="saveImpasto()">💾 Salva Impasto</button>
+            <div style="height:40px;"></div>`;
+
+            container.innerHTML = html;
+            container.classList.remove('hidden');
+            setTimeout(() => container.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+        }
+
+        // ── Storage helpers ─────────────────────────────────────────────
+        function getHistory() {
+            return JSON.parse(localStorage.getItem('pizzalab_history') || '[]');
+        }
+        function saveHistory(h) {
+            localStorage.setItem('pizzalab_history', JSON.stringify(h));
+        }
+
+        // ── Save impasto ────────────────────────────────────────────────
+        function saveImpasto() {
+            if (!currentCalc) return;
+            const now = new Date();
+            const entry = {
+                id:         now.getTime(),
+                date:       now.toISOString().split('T')[0],
+                time:       now.toTimeString().slice(0, 5),
+                type:       currentCalc.type,
+                palline:    currentCalc.palline,
+                ballWeight: currentCalc.ballWeight
+            };
+            const h = getHistory();
+            h.push(entry);
+            saveHistory(h);
+
+            const btn = document.getElementById('btn-save');
+            btn.textContent = '✅ Salvato!';
+            btn.disabled = true;
+        }
+
+        // ── Delete single entry ─────────────────────────────────────────
+        function deleteEntry(id) {
+            saveHistory(getHistory().filter(e => e.id !== id));
+            renderStorico();
+        }
+
+        // ── Clear all ───────────────────────────────────────────────────
+        function clearAll() {
+            if (!confirm('Cancellare tutto lo storico?')) return;
+            localStorage.removeItem('pizzalab_history');
+            renderStorico();
+        }
+
+        // ── Render storico ──────────────────────────────────────────────
+        const TYPE_ICONS = { Solina: '🌾', Farro: '🌿', Romano: '🍕' };
+
+        function fmtDate(d) {
+            const today = new Date().toISOString().split('T')[0];
+            const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+            if (d === today) return 'Oggi';
+            if (d === yesterday) return 'Ieri';
+            const [y, m, day] = d.split('-');
+            return `${day}/${m}/${y}`;
+        }
+
+        function renderStorico() {
+            const h = getHistory();
+            const list = document.getElementById('storico-list');
+            if (!list) return;
+
+            if (h.length === 0) {
+                list.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-icon">🍕</div>
+                        <p style="font-size:0.9rem;">Nessun impasto registrato.</p>
+                        <p style="font-size:0.8rem;margin-top:4px;">Calcola una ricetta e premi <strong>Salva</strong>.</p>
+                    </div>`;
+                return;
+            }
+
+            // Group by date (most recent first)
+            const grouped = {};
+            h.forEach(e => { if (!grouped[e.date]) grouped[e.date] = []; grouped[e.date].push(e); });
+            const dates = Object.keys(grouped).sort().reverse();
+
+            let html = '';
+            dates.forEach(date => {
+                const items = grouped[date];
+                const total = items.reduce((s, i) => s + i.palline, 0);
+                html += `
+                    <div class="day-section">
+                        <div class="day-header">
+                            <span class="day-label">${fmtDate(date)}</span>
+                            <span class="day-total">Tot: ${total} palline</span>
+                        </div>
+                        ${items.slice().reverse().map(e => `
+                        <div class="history-entry">
+                            <div class="entry-left">
+                                <span class="entry-icon">${TYPE_ICONS[e.type] || '🍞'}</span>
+                                <div>
+                                    <div class="entry-type">${e.type}</div>
+                                    <div class="entry-time">${e.time}</div>
+                                </div>
+                            </div>
+                            <div class="entry-right">
+                                <div class="entry-palline">
+                                    <div class="entry-count">${e.palline}</div>
+                                    <div class="entry-weight">palline ${e.ballWeight}g</div>
+                                </div>
+                                <button class="btn-delete" onclick="deleteEntry(${e.id})" title="Elimina">✕</button>
+                            </div>
+                        </div>`).join('')}
+                    </div>`;
+            });
+
+            list.innerHTML = html;
+        }
+    </script>
+</body>
+</html>
