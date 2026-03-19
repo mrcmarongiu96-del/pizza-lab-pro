@@ -12,6 +12,9 @@
     <link rel="apple-touch-icon" href="icon.svg">
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <!-- Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
     <style>
         :root { --nav-h: 70px; }
         * { box-sizing: border-box; }
@@ -22,106 +25,65 @@
                 radial-gradient(at 0% 0%, hsla(253,16%,7%,1) 0, transparent 50%),
                 radial-gradient(at 50% 0%, hsla(225,39%,30%,1) 0, transparent 50%),
                 radial-gradient(at 100% 0%, hsla(339,49%,30%,1) 0, transparent 50%);
-            color: white;
-            min-height: 100vh;
-            margin: 0; padding: 0;
+            color: white; min-height: 100vh; margin: 0; padding: 0;
         }
         .blob { position: fixed; filter: blur(60px); z-index: -1; opacity: 0.5; }
-
-        /* Layout */
         .app-container { padding: 20px 20px calc(var(--nav-h) + env(safe-area-inset-bottom) + 20px); }
         .content-wrapper { max-width: 600px; margin: 0 auto; }
+
+        /* Sync Overlay */
+        .sync-overlay {
+            position: fixed; inset: 0; background: rgba(8,12,25,0.97);
+            backdrop-filter: blur(12px); z-index: 200;
+            display: flex; align-items: center; justify-content: center; padding: 24px;
+        }
+        .sync-card {
+            background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 24px; padding: 32px; max-width: 380px; width: 100%; text-align: center;
+        }
+        .sync-icon { font-size: 3rem; margin-bottom: 16px; }
+        .sync-card h2 { font-size: 1.3rem; font-weight: 700; margin-bottom: 10px; }
+        .sync-card p { font-size: 0.82rem; color: #94a3b8; margin-bottom: 20px; line-height: 1.6; }
+        .sync-hint { font-size: 0.72rem; color: #475569; margin-top: 10px; }
 
         /* Bottom Nav */
         .bottom-nav {
             position: fixed; bottom: 0; left: 0; right: 0;
-            background: rgba(10, 15, 30, 0.97);
-            backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+            background: rgba(10,15,30,0.97); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
             border-top: 1px solid rgba(255,255,255,0.08);
             display: grid; grid-template-columns: repeat(4, 1fr);
-            padding-bottom: env(safe-area-inset-bottom);
-            z-index: 100;
+            padding-bottom: env(safe-area-inset-bottom); z-index: 100;
         }
-        .nav-item {
-            display: flex; flex-direction: column; align-items: center;
-            padding: 10px 4px; cursor: pointer; transition: all 0.2s;
-            font-size: 0.62rem; color: #475569; gap: 3px;
-        }
+        .nav-item { display: flex; flex-direction: column; align-items: center; padding: 10px 4px; cursor: pointer; transition: all 0.2s; font-size: 0.62rem; color: #475569; gap: 3px; }
         .nav-icon { font-size: 1.3rem; transition: transform 0.2s; }
         .nav-item.active { color: #a855f7; }
         .nav-item.active .nav-icon { transform: translateY(-2px); }
 
         /* Inputs */
         .input-group { position: relative; margin-bottom: 1rem; }
-        .input-glass {
-            background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.1);
-            color: white; border-radius: 12px; padding: 12px 16px; width: 100%;
-            transition: all 0.3s ease; font-size: 0.95rem; font-family: 'Poppins', sans-serif;
-        }
-        .input-glass:focus {
-            outline: none; border-color: #8b5cf6;
-            background: rgba(0,0,0,0.4); box-shadow: 0 0 0 2px rgba(139,92,246,0.3);
-        }
+        .input-glass { background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.1); color: white; border-radius: 12px; padding: 12px 16px; width: 100%; transition: all 0.3s; font-size: 0.95rem; font-family: 'Poppins', sans-serif; }
+        .input-glass:focus { outline: none; border-color: #8b5cf6; background: rgba(0,0,0,0.4); box-shadow: 0 0 0 2px rgba(139,92,246,0.3); }
         .input-label { font-size: 0.8rem; color: #94a3b8; margin-bottom: 4px; display: block; font-weight: 500; }
         textarea.input-glass { resize: none; min-height: 70px; }
 
         /* Recipe Tabs */
-        .recipe-tabs {
-            display: grid; grid-template-columns: repeat(3, 1fr);
-            background: rgba(0,0,0,0.2); padding: 4px; border-radius: 16px; margin-bottom: 1.5rem; gap: 2px;
-        }
-        .rtab {
-            text-align: center; padding: 10px 4px; border-radius: 12px;
-            cursor: pointer; transition: all 0.3s; font-size: 0.85rem; color: #94a3b8; font-weight: 600;
-        }
+        .recipe-tabs { display: grid; grid-template-columns: repeat(3,1fr); background: rgba(0,0,0,0.2); padding: 4px; border-radius: 16px; margin-bottom: 1.5rem; gap: 2px; }
+        .rtab { text-align: center; padding: 10px 4px; border-radius: 12px; cursor: pointer; transition: all 0.3s; font-size: 0.85rem; color: #94a3b8; font-weight: 600; }
         .rtab.active { background: rgba(255,255,255,0.1); color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
 
         /* Buttons */
-        .btn-calc {
-            background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
-            color: white; border: none; padding: 18px; border-radius: 16px;
-            width: 100%; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;
-            cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; margin-top: 1.5rem;
-            box-shadow: 0 4px 15px rgba(168,85,247,0.4); font-family: 'Poppins', sans-serif;
-        }
+        .btn-calc { background: linear-gradient(135deg,#6366f1 0%,#a855f7 100%); color: white; border: none; padding: 18px; border-radius: 16px; width: 100%; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; cursor: pointer; transition: transform 0.2s,box-shadow 0.2s; margin-top: 1.5rem; box-shadow: 0 4px 15px rgba(168,85,247,0.4); font-family: 'Poppins',sans-serif; }
         .btn-calc:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(168,85,247,0.6); }
-        .btn-calc:active { transform: translateY(0); }
-
-        .btn-green {
-            background: linear-gradient(135deg, #10b981, #059669);
-            color: white; border: none; padding: 15px; border-radius: 14px;
-            width: 100%; font-weight: 700; letter-spacing: 0.5px; cursor: pointer;
-            transition: all 0.2s; font-family: 'Poppins', sans-serif; font-size: 0.9rem;
-        }
+        .btn-green { background: linear-gradient(135deg,#10b981,#059669); color: white; border: none; padding: 15px; border-radius: 14px; width: 100%; font-weight: 700; letter-spacing: 0.5px; cursor: pointer; transition: all 0.2s; font-family: 'Poppins',sans-serif; font-size: 0.9rem; }
         .btn-green:hover { transform: translateY(-2px); }
         .btn-green:disabled { opacity: 0.6; transform: none; cursor: default; }
-
-        .btn-outline {
-            background: rgba(255,255,255,0.05); color: #94a3b8;
-            border: 1px solid rgba(255,255,255,0.1); padding: 10px 16px;
-            border-radius: 12px; cursor: pointer; font-size: 0.8rem;
-            transition: all 0.2s; font-family: 'Poppins', sans-serif;
-        }
+        .btn-outline { background: rgba(255,255,255,0.05); color: #94a3b8; border: 1px solid rgba(255,255,255,0.1); padding: 10px 16px; border-radius: 12px; cursor: pointer; font-size: 0.8rem; transition: all 0.2s; font-family: 'Poppins',sans-serif; }
         .btn-outline:hover { background: rgba(255,255,255,0.1); color: white; }
-
-        .btn-danger {
-            background: rgba(239,68,68,0.12); color: #f87171;
-            border: 1px solid rgba(239,68,68,0.25); padding: 8px 14px;
-            border-radius: 10px; font-size: 0.75rem; font-weight: 600;
-            cursor: pointer; transition: all 0.2s; font-family: 'Poppins', sans-serif;
-        }
-        .btn-danger:hover { background: rgba(239,68,68,0.22); }
+        .btn-danger { background: rgba(239,68,68,0.12); color: #f87171; border: 1px solid rgba(239,68,68,0.25); padding: 8px 14px; border-radius: 10px; font-size: 0.75rem; font-weight: 600; cursor: pointer; transition: all 0.2s; font-family: 'Poppins',sans-serif; }
 
         /* Results */
-        .results-grid {
-            display: grid; grid-template-columns: repeat(2, 1fr);
-            gap: 12px; margin-top: 1.5rem; animation: slideUp 0.4s ease-out;
-        }
-        .result-card {
-            background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05);
-            padding: 16px; border-radius: 16px;
-            display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;
-        }
+        .results-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 12px; margin-top: 1.5rem; animation: slideUp 0.4s ease-out; }
+        .result-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); padding: 16px; border-radius: 16px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
         .result-card.full-width { grid-column: span 2; }
         .result-card.highlight { background: rgba(16,185,129,0.1); border-color: rgba(16,185,129,0.3); }
         .result-card.hydration { background: rgba(56,189,248,0.1); border-color: rgba(56,189,248,0.3); }
@@ -131,53 +93,33 @@
         .res-icon { font-size: 1.4rem; margin-bottom: 6px; }
 
         /* Save Panel */
-        .save-panel {
-            background: rgba(16,185,129,0.07); border: 1px solid rgba(16,185,129,0.2);
-            border-radius: 16px; padding: 16px; margin-top: 12px;
-            animation: slideUp 0.3s ease-out;
-        }
+        .save-panel { background: rgba(16,185,129,0.07); border: 1px solid rgba(16,185,129,0.2); border-radius: 16px; padding: 16px; margin-top: 12px; animation: slideUp 0.3s ease-out; }
         .save-panel-title { font-size: 0.8rem; color: #6ee7b7; margin-bottom: 10px; font-weight: 600; }
 
-        /* Preset badge */
+        /* Preset */
         .preset-bar { display: flex; gap: 8px; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; }
-        .preset-chip {
-            background: rgba(139,92,246,0.15); border: 1px solid rgba(139,92,246,0.3);
-            color: #c4b5fd; padding: 5px 12px; border-radius: 20px; font-size: 0.75rem;
-            cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 6px;
-        }
+        .preset-chip { background: rgba(139,92,246,0.15); border: 1px solid rgba(139,92,246,0.3); color: #c4b5fd; padding: 5px 12px; border-radius: 20px; font-size: 0.75rem; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 6px; }
         .preset-chip:hover { background: rgba(139,92,246,0.28); }
-        .preset-chip .del-preset { opacity: 0.5; font-size: 0.7rem; }
-        .preset-chip .del-preset:hover { opacity: 1; color: #f87171; }
+        .del-preset { opacity: 0.5; font-size: 0.7rem; }
+        .del-preset:hover { opacity: 1; color: #f87171; }
 
         /* Chart */
-        .chart-wrap {
-            background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06);
-            border-radius: 16px; padding: 16px; margin-bottom: 16px;
-        }
+        .chart-wrap { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); border-radius: 16px; padding: 16px; margin-bottom: 16px; }
         .chart-title { font-size: 0.75rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; }
-        .chart-bars {
-            display: flex; align-items: flex-end; justify-content: space-between;
-            height: 100px; gap: 4px;
-        }
+        .chart-bars { display: flex; align-items: flex-end; justify-content: space-between; height: 100px; gap: 4px; }
         .chart-col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 4px; height: 100%; }
         .chart-cnt { font-size: 0.6rem; color: #64748b; min-height: 12px; }
-        .chart-bar {
-            width: 100%; background: rgba(99,102,241,0.3); border-radius: 4px 4px 0 0;
-            min-height: 3px; transition: height 0.5s ease;
-        }
-        .chart-bar.is-today { background: linear-gradient(to top, #6366f1, #a855f7); }
+        .chart-bar { width: 100%; background: rgba(99,102,241,0.3); border-radius: 4px 4px 0 0; min-height: 3px; transition: height 0.5s ease; }
+        .chart-bar.is-today { background: linear-gradient(to top,#6366f1,#a855f7); }
         .chart-day { font-size: 0.62rem; color: #475569; }
         .chart-day.is-today { color: #a855f7; font-weight: 700; }
 
-        /* Storico list */
+        /* Storico */
         .day-section { margin-bottom: 20px; }
         .day-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
         .day-label { font-size: 0.85rem; font-weight: 600; color: #a855f7; }
         .day-total { background: rgba(168,85,247,0.15); color: #c084fc; padding: 3px 10px; border-radius: 20px; font-size: 0.72rem; font-weight: 600; }
-        .history-entry {
-            background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07);
-            border-radius: 12px; padding: 12px 14px; margin-bottom: 8px;
-        }
+        .history-entry { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); border-radius: 12px; padding: 12px 14px; margin-bottom: 8px; }
         .entry-main { display: flex; align-items: center; justify-content: space-between; }
         .entry-left { display: flex; align-items: center; gap: 12px; }
         .entry-icon { font-size: 1.4rem; }
@@ -192,72 +134,71 @@
         .empty-state { text-align: center; padding: 50px 20px; color: #475569; }
         .empty-icon { font-size: 2.8rem; margin-bottom: 10px; }
 
+        /* Sync code chip */
+        .code-chip { background: rgba(99,102,241,0.15); border: 1px solid rgba(99,102,241,0.3); color: #a5b4fc; padding: 4px 10px; border-radius: 20px; font-size: 0.7rem; font-family: monospace; }
+
         /* Timer */
-        .timer-display {
-            font-size: 4.5rem; font-weight: 700; text-align: center;
-            font-variant-numeric: tabular-nums; letter-spacing: 2px;
-            background: linear-gradient(135deg, #fff 0%, #a855f7 100%);
-            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-            background-clip: text; margin: 1.5rem 0;
-        }
-        .timer-display.urgent { background: linear-gradient(135deg, #f87171, #ef4444); -webkit-background-clip: text; background-clip: text; }
+        .timer-display { font-size: 4.5rem; font-weight: 700; text-align: center; font-variant-numeric: tabular-nums; letter-spacing: 2px; background: linear-gradient(135deg,#fff 0%,#a855f7 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; margin: 1.5rem 0; }
+        .timer-display.urgent { background: linear-gradient(135deg,#f87171,#ef4444); -webkit-background-clip: text; background-clip: text; }
         .timer-btns { display: flex; gap: 10px; }
-        .btn-timer {
-            flex: 1; padding: 16px; border-radius: 16px; border: none;
-            font-weight: 700; font-size: 0.9rem; cursor: pointer;
-            transition: all 0.2s; font-family: 'Poppins', sans-serif;
-        }
+        .btn-timer { flex: 1; padding: 16px; border-radius: 16px; border: none; font-weight: 700; font-size: 0.9rem; cursor: pointer; transition: all 0.2s; font-family: 'Poppins',sans-serif; }
         .btn-timer.t-start { background: linear-gradient(135deg,#10b981,#059669); color: white; }
         .btn-timer.t-stop { background: rgba(239,68,68,0.2); color: #f87171; border: 1px solid rgba(239,68,68,0.3); }
         .btn-timer.t-reset { background: rgba(255,255,255,0.05); color: #94a3b8; border: 1px solid rgba(255,255,255,0.1); flex: 0 0 60px; }
         .timer-presets { display: flex; gap: 8px; margin-bottom: 1rem; flex-wrap: wrap; }
-        .timer-preset-btn {
-            background: rgba(139,92,246,0.12); border: 1px solid rgba(139,92,246,0.25);
-            color: #c4b5fd; padding: 6px 14px; border-radius: 20px; font-size: 0.78rem;
-            cursor: pointer; transition: all 0.2s; font-family: 'Poppins', sans-serif;
-        }
+        .timer-preset-btn { background: rgba(139,92,246,0.12); border: 1px solid rgba(139,92,246,0.25); color: #c4b5fd; padding: 6px 14px; border-radius: 20px; font-size: 0.78rem; cursor: pointer; transition: all 0.2s; font-family: 'Poppins',sans-serif; }
         .timer-preset-btn:hover { background: rgba(139,92,246,0.25); }
         .timer-status { text-align: center; font-size: 0.8rem; color: #64748b; margin-top: 8px; min-height: 20px; }
 
         /* Temperature */
-        .temp-result {
-            text-align: center; padding: 24px; border-radius: 16px; margin-top: 1rem;
-            animation: slideUp 0.3s ease-out;
-        }
+        .temp-result { text-align: center; padding: 24px; border-radius: 16px; margin-top: 1rem; animation: slideUp 0.3s ease-out; }
         .temp-result.cold { background: rgba(56,189,248,0.1); border: 1px solid rgba(56,189,248,0.3); }
         .temp-result.warm { background: rgba(251,146,60,0.1); border: 1px solid rgba(251,146,60,0.3); }
         .temp-result.ok { background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.3); }
         .temp-big { font-size: 3rem; font-weight: 700; }
         .temp-label { font-size: 0.8rem; color: #94a3b8; margin-bottom: 8px; }
-        .temp-note { font-size: 0.78rem; margin-top: 8px; }
+        .temp-note { font-size: 0.78rem; margin-top: 8px; color: #94a3b8; }
 
-        /* Section headers */
         .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
         .section-title { font-size: 1rem; font-weight: 700; }
-
-        /* Cards */
-        .tool-card {
-            background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07);
-            border-radius: 16px; padding: 16px; margin-bottom: 16px;
-        }
+        .tool-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); border-radius: 16px; padding: 16px; margin-bottom: 16px; }
         .tool-card-title { font-size: 0.85rem; font-weight: 600; color: #a855f7; margin-bottom: 12px; }
 
-        @keyframes slideUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+        /* Sync status dot */
+        .sync-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 5px; }
+        .sync-dot.online { background: #10b981; }
+        .sync-dot.offline { background: #f87171; }
+        .sync-dot.loading { background: #f59e0b; animation: pulse 1s infinite; }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+        @keyframes slideUp { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
         .hidden { display: none !important; }
 
         @media print {
             body { background: white !important; color: black !important; }
-            .blob, .bottom-nav, .btn-calc, .btn-green, .btn-outline, .save-panel,
-            .recipe-tabs, .input-group, .preset-bar, .no-print { display: none !important; }
+            .blob,.bottom-nav,.btn-calc,.btn-green,.btn-outline,.save-panel,.recipe-tabs,.input-group,.preset-bar,.no-print { display: none !important; }
             .app-container { padding: 0 !important; }
             .result-card { background: #f8f8f8 !important; border: 1px solid #ddd !important; break-inside: avoid; }
             .res-label { color: #555 !important; }
             .res-value { color: #111 !important; }
-            .results-grid { margin-top: 0 !important; }
         }
     </style>
 </head>
 <body>
+
+<!-- Sync Code Overlay -->
+<div id="sync-overlay" class="sync-overlay">
+    <div class="sync-card">
+        <div class="sync-icon">🍕</div>
+        <h2>Pizza Lab Pro</h2>
+        <p>Inserisci un <strong>codice segreto</strong> per sincronizzare i tuoi impasti su tutti i dispositivi.<br>Usa lo stesso codice su iPhone e Mac.</p>
+        <div class="input-group">
+            <input type="text" id="sync-code-input" class="input-glass text-center" placeholder="Es. marco-pizza-2024" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" style="font-size:1.1rem;padding:14px;">
+        </div>
+        <button class="btn-calc" style="margin-top:0.5rem;" onclick="applySyncCode()">Inizia →</button>
+        <p class="sync-hint">⚠️ Ricorda questo codice — serve su ogni dispositivo</p>
+    </div>
+</div>
 
 <div class="blob" style="top:-10%;left:-10%;width:300px;height:300px;background:#4c1d95;"></div>
 <div class="blob" style="bottom:10%;right:-5%;width:250px;height:250px;background:#be185d;"></div>
@@ -265,20 +206,20 @@
 <div class="app-container">
 <div class="content-wrapper">
 
-    <!-- ═══════════ SECTION: RICETTE ═══════════ -->
+    <!-- ═══════════ RICETTE ═══════════ -->
     <div id="section-ricette">
         <div class="flex justify-between items-center mb-5 pt-2">
             <div>
                 <h1 class="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400">Pizza Lab</h1>
-                <p class="text-xs text-gray-400">Professional Calculator</p>
+                <p class="text-xs" style="color:#475569;"><span id="sync-dot" class="sync-dot loading"></span><span id="sync-label">connessione...</span></p>
             </div>
             <button class="btn-outline no-print" onclick="printRecipe()">🖨️ Stampa</button>
         </div>
 
         <div class="recipe-tabs">
-            <div class="rtab active" onclick="switchRecipe('solina', this)">Solina</div>
-            <div class="rtab" onclick="switchRecipe('farro', this)">Farro</div>
-            <div class="rtab" onclick="switchRecipe('romano', this)">Romano</div>
+            <div class="rtab active" onclick="switchRecipe('solina',this)">Solina</div>
+            <div class="rtab" onclick="switchRecipe('farro',this)">Farro</div>
+            <div class="rtab" onclick="switchRecipe('romano',this)">Romano</div>
         </div>
 
         <!-- SOLINA -->
@@ -343,7 +284,6 @@
             <button class="btn-calc" onclick="calculate('romano')">Calcola Ricetta</button>
         </div>
 
-        <!-- Results + Save -->
         <div id="results-container" class="hidden"></div>
         <div id="save-panel" class="save-panel hidden no-print">
             <div class="save-panel-title">💾 Salva impasto nello storico</div>
@@ -355,13 +295,13 @@
         </div>
     </div>
 
-    <!-- ═══════════ SECTION: STORICO ═══════════ -->
+    <!-- ═══════════ STORICO ═══════════ -->
     <div id="section-storico" class="hidden">
         <div class="section-header">
             <span class="section-title">📋 Storico Impasti</span>
             <div class="flex gap-2">
                 <button class="btn-outline" onclick="exportCSV()">📤 Esporta</button>
-                <button class="btn-danger" onclick="clearAll()">🗑 Cancella</button>
+                <button class="btn-danger" onclick="clearAll()">🗑</button>
             </div>
         </div>
         <div class="chart-wrap">
@@ -371,10 +311,9 @@
         <div id="storico-list"></div>
     </div>
 
-    <!-- ═══════════ SECTION: TIMER ═══════════ -->
+    <!-- ═══════════ TIMER ═══════════ -->
     <div id="section-timer" class="hidden">
         <div class="section-header"><span class="section-title">⏱️ Timer Lievitazione</span></div>
-
         <div class="tool-card">
             <div class="tool-card-title">Preset rapidi</div>
             <div class="timer-presets">
@@ -390,10 +329,8 @@
                 <div class="input-group"><label class="input-label">Minuti</label><input type="number" id="timer-m" value="0" min="0" max="59" class="input-glass text-center text-xl font-bold"></div>
             </div>
         </div>
-
         <div id="timer-display" class="timer-display">00:00:00</div>
         <div id="timer-status" class="timer-status">Imposta le ore e premi Start</div>
-
         <div class="timer-btns">
             <button id="btn-timer-start" class="btn-timer t-start" onclick="timerStart()">▶ Start</button>
             <button id="btn-timer-stop" class="btn-timer t-stop hidden" onclick="timerStop()">⏸ Pausa</button>
@@ -401,350 +338,170 @@
         </div>
     </div>
 
-    <!-- ═══════════ SECTION: STRUMENTI ═══════════ -->
+    <!-- ═══════════ STRUMENTI ═══════════ -->
     <div id="section-strumenti" class="hidden">
         <div class="section-header"><span class="section-title">🔧 Strumenti</span></div>
-
-        <!-- Temperatura acqua -->
         <div class="tool-card">
             <div class="tool-card-title">🌡️ Temperatura Acqua Consigliata</div>
-            <p class="text-xs text-gray-400 mb-3">Calcola la temperatura ideale dell'acqua per ottenere un impasto a 24°C.</p>
+            <p class="text-xs text-gray-400 mb-3">Calcola la temperatura ideale per ottenere un impasto a 24°C.</p>
             <div class="grid grid-cols-2 gap-3">
-                <div class="input-group">
-                    <label class="input-label">🌡️ Temp. ambiente (°C)</label>
-                    <input type="number" id="temp-ambiente" value="20" class="input-glass text-center text-xl font-bold" oninput="calcTemp()">
-                </div>
-                <div class="input-group">
-                    <label class="input-label">🌾 Temp. farina (°C)</label>
-                    <input type="number" id="temp-farina" value="20" class="input-glass text-center text-xl font-bold" oninput="calcTemp()">
-                </div>
+                <div class="input-group"><label class="input-label">🌡️ Temp. ambiente (°C)</label><input type="number" id="temp-ambiente" value="20" class="input-glass text-center text-xl font-bold" oninput="calcTemp()"></div>
+                <div class="input-group"><label class="input-label">🌾 Temp. farina (°C)</label><input type="number" id="temp-farina" value="20" class="input-glass text-center text-xl font-bold" oninput="calcTemp()"></div>
             </div>
             <div id="temp-result"></div>
         </div>
-
-        <!-- Preset salvati -->
         <div class="tool-card">
             <div class="tool-card-title">💾 Preset Salvati</div>
             <div id="all-presets-list"></div>
+        </div>
+        <div class="tool-card">
+            <div class="tool-card-title">⚙️ Sincronizzazione</div>
+            <p class="text-xs text-gray-400 mb-3">Il tuo codice attuale:</p>
+            <div class="flex items-center gap-3">
+                <span id="current-code-display" class="code-chip"></span>
+                <button class="btn-danger" onclick="changeSyncCode()">Cambia codice</button>
+            </div>
         </div>
     </div>
 
 </div>
 </div>
 
-<!-- Bottom Navigation -->
 <nav class="bottom-nav">
-    <div class="nav-item active" onclick="showSection('ricette', this)"><span class="nav-icon">🍕</span><span>Ricette</span></div>
-    <div class="nav-item" onclick="showSection('storico', this)"><span class="nav-icon">📋</span><span>Storico</span></div>
-    <div class="nav-item" onclick="showSection('timer', this)"><span class="nav-icon">⏱️</span><span>Timer</span></div>
-    <div class="nav-item" onclick="showSection('strumenti', this)"><span class="nav-icon">🔧</span><span>Strumenti</span></div>
+    <div class="nav-item active" onclick="showSection('ricette',this)"><span class="nav-icon">🍕</span><span>Ricette</span></div>
+    <div class="nav-item" onclick="showSection('storico',this)"><span class="nav-icon">📋</span><span>Storico</span></div>
+    <div class="nav-item" onclick="showSection('timer',this)"><span class="nav-icon">⏱️</span><span>Timer</span></div>
+    <div class="nav-item" onclick="showSection('strumenti',this)"><span class="nav-icon">🔧</span><span>Strumenti</span></div>
 </nav>
 
 <script>
-// ── PWA ──────────────────────────────────────────────────────────────
+// ── Firebase init ─────────────────────────────────────────────────────
+const firebaseConfig = {
+    apiKey: "AIzaSyDDnSYqnTO1kw0dImIU8LoEFhyTxx25530",
+    authDomain: "pizza-lab-pro.firebaseapp.com",
+    projectId: "pizza-lab-pro",
+    storageBucket: "pizza-lab-pro.firebasestorage.app",
+    messagingSenderId: "99950673376",
+    appId: "1:99950673376:web:2b9976b5a5e918c828ff85"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+db.enablePersistence().catch(() => {});
+
+// ── PWA ───────────────────────────────────────────────────────────────
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
 
 // ── State ─────────────────────────────────────────────────────────────
 let currentCalc = null;
 let currentRecipe = 'solina';
+let historyCache = [];
+let presetsCache = {};
+let unsubHistory = null;
 
-// ── Navigation ────────────────────────────────────────────────────────
-function showSection(name, btn) {
-    ['ricette','storico','timer','strumenti'].forEach(s => {
-        document.getElementById('section-' + s).classList.add('hidden');
-    });
-    document.getElementById('section-' + name).classList.remove('hidden');
-    document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-    btn.classList.add('active');
-    if (name === 'storico') { renderChart(); renderStorico(); }
-    if (name === 'strumenti') { calcTemp(); renderAllPresets(); }
+// ── Sync Code ─────────────────────────────────────────────────────────
+function getSyncCode() { return localStorage.getItem('pizzalab_code'); }
+
+function applySyncCode() {
+    const val = document.getElementById('sync-code-input').value.trim().toLowerCase().replace(/\s+/g,'-');
+    if (val.length < 3) { alert('Inserisci almeno 3 caratteri!'); return; }
+    localStorage.setItem('pizzalab_code', val);
+    document.getElementById('sync-overlay').classList.add('hidden');
+    initApp();
 }
 
-// ── Recipe tabs ───────────────────────────────────────────────────────
-function switchRecipe(type, btn) {
-    document.querySelectorAll('.recipe-form').forEach(el => el.classList.add('hidden'));
-    document.getElementById('rf-' + type).classList.remove('hidden');
-    document.querySelectorAll('.rtab').forEach(el => el.classList.remove('active'));
-    btn.classList.add('active');
-    currentRecipe = type;
-    document.getElementById('results-container').classList.add('hidden');
-    document.getElementById('results-container').innerHTML = '';
-    document.getElementById('save-panel').classList.add('hidden');
-    currentCalc = null;
-    renderPresetBar(type);
+function changeSyncCode() {
+    if (!confirm('Cambiare codice significa perdere accesso allo storico attuale su questo dispositivo. Continuare?')) return;
+    localStorage.removeItem('pizzalab_code');
+    if (unsubHistory) { unsubHistory(); unsubHistory = null; }
+    document.getElementById('sync-code-input').value = '';
+    document.getElementById('sync-overlay').classList.remove('hidden');
 }
 
-// ── Calculate ─────────────────────────────────────────────────────────
-function calculate(type) {
-    let data = {}, ballWeight = 0, targetCount = 0, totalFlour = 0, typeName = '';
+// ── Firestore refs ────────────────────────────────────────────────────
+function historyRef() { return db.collection('users').doc(getSyncCode()).collection('history'); }
+function presetsRef() { return db.collection('users').doc(getSyncCode()).collection('data').doc('presets'); }
 
-    if (type === 'solina') {
-        typeName = 'Solina'; ballWeight = 290;
-        targetCount = parseFloat(document.getElementById('target-solina').value);
-        const s = parseFloat(document.getElementById('solina-kg').value);
-        const c = parseFloat(document.getElementById('caputo-kg').value);
-        data = {
-            'Solina':  { val: s, unit: 'kg', icon: '🌾' },
-            'Caputo':  { val: c, unit: 'kg', icon: '🌾' },
-            'Acqua':   { val: parseFloat(document.getElementById('acqua-kg').value), unit: 'kg', icon: '💧' },
-            'Sale':    { val: parseFloat(document.getElementById('sale-g').value), unit: 'g', icon: '🧂' },
-            'Lievito': { val: parseFloat(document.getElementById('lievito-g').value), unit: 'g', icon: '🍞' }
-        };
-        totalFlour = s + c;
-
-    } else if (type === 'farro') {
-        typeName = 'Farro'; ballWeight = 290;
-        targetCount = parseFloat(document.getElementById('target-farro').value);
-        const f = parseFloat(document.getElementById('farro-kg').value);
-        const s = parseFloat(document.getElementById('solina-farro-kg').value);
-        const c = parseFloat(document.getElementById('caputo-farro-kg').value);
-        data = {
-            'Farro':   { val: f, unit: 'kg', icon: '🌿' },
-            'Solina':  { val: s, unit: 'kg', icon: '🌾' },
-            'Caputo':  { val: c, unit: 'kg', icon: '🌾' },
-            'Acqua':   { val: parseFloat(document.getElementById('acqua-farro-kg').value), unit: 'kg', icon: '💧' },
-            'Sale':    { val: parseFloat(document.getElementById('sale-farro-g').value), unit: 'g', icon: '🧂' },
-            'Lievito': { val: parseFloat(document.getElementById('lievito-farro-g').value), unit: 'g', icon: '🍞' }
-        };
-        totalFlour = f + s + c;
-
-    } else if (type === 'romano') {
-        typeName = 'Romano'; ballWeight = 190;
-        targetCount = parseFloat(document.getElementById('target-romano').value);
-        const fb = parseFloat(document.getElementById('farina-blu-kg').value);
-        data = {
-            'Farina Blu': { val: fb, unit: 'kg', icon: '🍕' },
-            'Acqua':      { val: parseFloat(document.getElementById('acqua-romano-kg').value), unit: 'kg', icon: '💧' },
-            'Sale':       { val: parseFloat(document.getElementById('sale-romano-g').value), unit: 'g', icon: '🧂' },
-            'Zucchero':   { val: parseFloat(document.getElementById('zucchero-g').value), unit: 'g', icon: '🍬' },
-            'Lievito':    { val: parseFloat(document.getElementById('lievito-romano-g').value), unit: 'g', icon: '🍞' },
-            'Olio':       { val: parseFloat(document.getElementById('olio-oliva-kg').value), unit: 'kg', icon: '🫒' }
-        };
-        totalFlour = fb;
-    }
-
-    if (!targetCount || targetCount <= 0) { alert('Inserisci un numero di palline valido!'); return; }
-
-    let totalKg = 0;
-    for (let k in data) { let v = data[k].val; if (data[k].unit === 'g') v /= 1000; totalKg += v; }
-    const targetKg = (targetCount * ballWeight) / 1000;
-    const factor = targetKg / totalKg;
-
-    currentCalc = { type: typeName, palline: targetCount, ballWeight };
-
-    const waterVal = data['Acqua'] ? data['Acqua'].val : 0;
-    let html = '<div class="results-grid">';
-    if (totalFlour > 0 && waterVal > 0) {
-        const hyd = ((waterVal / totalFlour) * 100).toFixed(1);
-        html += `<div class="result-card full-width hydration"><div class="res-icon">💧</div><div class="res-label" style="color:#38bdf8;">Idratazione</div><div class="res-value" style="color:#38bdf8;">${hyd}<span class="res-unit">%</span></div></div>`;
-    }
-    for (let k in data) {
-        const scaled = data[k].val * factor;
-        const dv = data[k].unit === 'kg' ? scaled.toFixed(2) : Math.round(scaled);
-        html += `<div class="result-card"><div class="res-icon">${data[k].icon}</div><div class="res-label">${k}</div><div class="res-value">${dv} <span class="res-unit">${data[k].unit}</span></div></div>`;
-    }
-    html += `<div class="result-card full-width highlight"><div class="res-label" style="color:#a7f3d0;">Peso Totale Impasto</div><div class="res-value" style="color:#34d399;font-size:1.4rem;">${Math.round(targetKg * 1000)} <span class="res-unit">g</span></div></div></div>`;
-
-    const container = document.getElementById('results-container');
-    container.innerHTML = html;
-    container.classList.remove('hidden');
-
-    const panel = document.getElementById('save-panel');
-    panel.classList.remove('hidden');
-    document.getElementById('save-note').value = '';
-    document.getElementById('btn-save').textContent = 'Salva Impasto';
-    document.getElementById('btn-save').disabled = false;
-
-    setTimeout(() => container.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+// ── Init ──────────────────────────────────────────────────────────────
+function initApp() {
+    const code = getSyncCode();
+    document.getElementById('current-code-display').textContent = code;
+    setSyncStatus('loading');
+    startHistoryListener();
+    loadPresetsFromDB();
+    renderPresetBar('solina');
+    calcTemp();
 }
 
-// ── Storage helpers ───────────────────────────────────────────────────
-function getHistory() { return JSON.parse(localStorage.getItem('pizzalab_history') || '[]'); }
-function setHistory(h) { localStorage.setItem('pizzalab_history', JSON.stringify(h)); }
+function setSyncStatus(state) {
+    const dot = document.getElementById('sync-dot');
+    const lbl = document.getElementById('sync-label');
+    dot.className = 'sync-dot ' + state;
+    lbl.textContent = state === 'online' ? 'sincronizzato' : state === 'offline' ? 'offline' : 'connessione...';
+}
 
-// ── Save ──────────────────────────────────────────────────────────────
-function confirmSave() {
+// ── History listener ──────────────────────────────────────────────────
+function startHistoryListener() {
+    if (unsubHistory) unsubHistory();
+    unsubHistory = historyRef().onSnapshot(snap => {
+        historyCache = snap.docs.map(d => d.data()).sort((a,b) => a.id - b.id);
+        setSyncStatus('online');
+        if (!document.getElementById('section-storico').classList.contains('hidden')) {
+            renderChart(); renderStorico();
+        }
+    }, () => setSyncStatus('offline'));
+}
+
+function getHistory() { return historyCache; }
+
+// ── Save entry ────────────────────────────────────────────────────────
+async function confirmSave() {
     if (!currentCalc) return;
     const now = new Date();
     const entry = {
-        id:         now.getTime(),
-        date:       now.toISOString().split('T')[0],
-        time:       now.toTimeString().slice(0, 5),
-        type:       currentCalc.type,
-        palline:    currentCalc.palline,
+        id: now.getTime(),
+        date: now.toISOString().split('T')[0],
+        time: now.toTimeString().slice(0,5),
+        type: currentCalc.type,
+        palline: currentCalc.palline,
         ballWeight: currentCalc.ballWeight,
-        note:       document.getElementById('save-note').value.trim()
+        note: document.getElementById('save-note').value.trim()
     };
-    const h = getHistory(); h.push(entry); setHistory(h);
     const btn = document.getElementById('btn-save');
-    btn.textContent = '✅ Salvato!'; btn.disabled = true;
-}
-
-// ── Delete / Clear ────────────────────────────────────────────────────
-function deleteEntry(id) { setHistory(getHistory().filter(e => e.id !== id)); renderChart(); renderStorico(); }
-function clearAll() { if (!confirm('Cancellare tutto lo storico?')) return; localStorage.removeItem('pizzalab_history'); renderChart(); renderStorico(); }
-
-// ── Date helpers ──────────────────────────────────────────────────────
-function todayStr() { return new Date().toISOString().split('T')[0]; }
-function fmtDate(d) {
-    const t = todayStr();
-    const y = new Date(Date.now() - 86400000).toISOString().split('T')[0];
-    if (d === t) return 'Oggi';
-    if (d === y) return 'Ieri';
-    const [yr, m, day] = d.split('-'); return `${day}/${m}/${yr}`;
-}
-const TYPE_ICONS = { Solina: '🌾', Farro: '🌿', Romano: '🍕' };
-
-// ── Storico render ────────────────────────────────────────────────────
-function renderStorico() {
-    const h = getHistory();
-    const list = document.getElementById('storico-list');
-    if (!h.length) {
-        list.innerHTML = `<div class="empty-state"><div class="empty-icon">🍕</div><p style="font-size:.9rem;">Nessun impasto registrato.</p><p style="font-size:.78rem;margin-top:4px;">Calcola una ricetta e premi Salva.</p></div>`;
-        return;
+    btn.textContent = 'Salvataggio...'; btn.disabled = true;
+    try {
+        await historyRef().doc(String(entry.id)).set(entry);
+        btn.textContent = '✅ Salvato!';
+    } catch(e) {
+        btn.textContent = '❌ Errore — riprova'; btn.disabled = false;
     }
-    const grouped = {};
-    h.forEach(e => { if (!grouped[e.date]) grouped[e.date] = []; grouped[e.date].push(e); });
-    const dates = Object.keys(grouped).sort().reverse();
-    let html = '';
-    dates.forEach(date => {
-        const items = grouped[date];
-        const total = items.reduce((s, i) => s + i.palline, 0);
-        html += `<div class="day-section"><div class="day-header"><span class="day-label">${fmtDate(date)}</span><span class="day-total">Tot: ${total} palline</span></div>`;
-        items.slice().reverse().forEach(e => {
-            html += `<div class="history-entry"><div class="entry-main"><div class="entry-left"><span class="entry-icon">${TYPE_ICONS[e.type]||'🍞'}</span><div><div class="entry-type">${e.type}</div><div class="entry-time">${e.time}</div></div></div><div class="entry-right"><div><div class="entry-count">${e.palline}</div><div class="entry-weight">palline ${e.ballWeight}g</div></div><button class="btn-del" onclick="deleteEntry(${e.id})">✕</button></div></div>${e.note ? `<div class="entry-note">📝 ${e.note}</div>` : ''}</div>`;
-        });
-        html += '</div>';
-    });
-    list.innerHTML = html;
 }
 
-// ── Chart ─────────────────────────────────────────────────────────────
-function renderChart() {
-    const h = getHistory();
-    const today = new Date();
-    const days = [];
-    const labels = ['Dom','Lun','Mar','Mer','Gio','Ven','Sab'];
-    for (let i = 6; i >= 0; i--) {
-        const d = new Date(today); d.setDate(d.getDate() - i);
-        const ds = d.toISOString().split('T')[0];
-        const total = h.filter(e => e.date === ds).reduce((s, e) => s + e.palline, 0);
-        days.push({ ds, label: labels[d.getDay()], total, isToday: ds === todayStr() });
-    }
-    const max = Math.max(...days.map(d => d.total), 1);
-    const chart = document.getElementById('weekly-chart');
-    chart.innerHTML = days.map(d => {
-        const pct = Math.max((d.total / max) * 100, d.total ? 4 : 1);
-        return `<div class="chart-col"><div class="chart-cnt">${d.total || ''}</div><div class="chart-bar ${d.isToday ? 'is-today' : ''}" style="height:${pct}%"></div><div class="chart-day ${d.isToday ? 'is-today' : ''}">${d.label}</div></div>`;
-    }).join('');
+async function deleteEntry(id) {
+    await historyRef().doc(String(id)).delete();
 }
 
-// ── Export CSV ────────────────────────────────────────────────────────
-function exportCSV() {
-    const h = getHistory();
-    if (!h.length) { alert('Nessun dato da esportare.'); return; }
-    const rows = [['Data','Ora','Tipo','Palline','Peso pallina (g)','Note']];
-    h.forEach(e => rows.push([e.date, e.time, e.type, e.palline, e.ballWeight, e.note || '']));
-    const csv = rows.map(r => r.map(v => `"${v}"`).join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = 'pizza-lab-storico.csv'; a.click();
-    URL.revokeObjectURL(url);
-}
-
-// ── Print ─────────────────────────────────────────────────────────────
-function printRecipe() {
-    if (document.getElementById('results-container').classList.contains('hidden')) {
-        alert('Calcola prima una ricetta!'); return;
-    }
-    window.print();
-}
-
-// ── Timer ─────────────────────────────────────────────────────────────
-let timerInterval = null;
-let timerSeconds = 0;
-let timerRunning = false;
-
-function setTimer(h, m) {
-    document.getElementById('timer-h').value = h;
-    document.getElementById('timer-m').value = m;
-}
-
-function timerStart() {
-    if (timerRunning) return;
-    if (!timerInterval) {
-        const h = parseInt(document.getElementById('timer-h').value) || 0;
-        const m = parseInt(document.getElementById('timer-m').value) || 0;
-        timerSeconds = h * 3600 + m * 60;
-        if (timerSeconds <= 0) { alert('Imposta un tempo valido!'); return; }
-    }
-    timerRunning = true;
-    document.getElementById('btn-timer-start').classList.add('hidden');
-    document.getElementById('btn-timer-stop').classList.remove('hidden');
-    document.getElementById('timer-status').textContent = 'Timer in corso...';
-
-    if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission();
-
-    timerInterval = setInterval(() => {
-        timerSeconds--;
-        updateTimerDisplay();
-        if (timerSeconds <= 0) {
-            clearInterval(timerInterval); timerInterval = null; timerRunning = false;
-            document.getElementById('timer-status').textContent = '✅ Lievitazione completata!';
-            document.getElementById('btn-timer-stop').classList.add('hidden');
-            document.getElementById('btn-timer-start').classList.remove('hidden');
-            if ('Notification' in window && Notification.permission === 'granted') {
-                new Notification('Pizza Lab Pro', { body: '🍕 Lievitazione completata! Impasto pronto.', icon: './icon.svg' });
-            }
-        }
-    }, 1000);
-}
-
-function timerStop() {
-    clearInterval(timerInterval); timerInterval = null; timerRunning = false;
-    document.getElementById('btn-timer-stop').classList.add('hidden');
-    document.getElementById('btn-timer-start').classList.remove('hidden');
-    document.getElementById('timer-status').textContent = 'In pausa';
-}
-
-function timerReset() {
-    clearInterval(timerInterval); timerInterval = null; timerRunning = false;
-    timerSeconds = 0;
-    document.getElementById('timer-display').textContent = '00:00:00';
-    document.getElementById('timer-display').classList.remove('urgent');
-    document.getElementById('btn-timer-stop').classList.add('hidden');
-    document.getElementById('btn-timer-start').classList.remove('hidden');
-    document.getElementById('timer-status').textContent = 'Imposta le ore e premi Start';
-}
-
-function updateTimerDisplay() {
-    const h = Math.floor(timerSeconds / 3600);
-    const m = Math.floor((timerSeconds % 3600) / 60);
-    const s = timerSeconds % 60;
-    const disp = document.getElementById('timer-display');
-    disp.textContent = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
-    disp.classList.toggle('urgent', timerSeconds <= 60 && timerSeconds > 0);
-}
-
-// ── Temperature ───────────────────────────────────────────────────────
-function calcTemp() {
-    const ta = parseFloat(document.getElementById('temp-ambiente').value) || 20;
-    const tf = parseFloat(document.getElementById('temp-farina').value) || 20;
-    // Formula: T_acqua = (T_desiderata × 3) - T_ambiente - T_farina
-    // T_desiderata impasto pizza = 24°C, attrito macchina ≈ 0
-    const tw = 72 - ta - tf;
-    const container = document.getElementById('temp-result');
-    let cls = 'ok', icon = '✅', note = 'Temperatura ideale per un impasto a 24°C.';
-    if (tw < 4) { cls = 'cold'; icon = '🧊'; note = `Usa acqua + ghiaccio. Temp. molto bassa.`; }
-    else if (tw < 10) { cls = 'cold'; icon = '❄️'; note = 'Usa acqua fredda da frigo.'; }
-    else if (tw > 35) { cls = 'warm'; icon = '⚠️'; note = 'Troppo alta: rischia di compromettere il lievito.'; }
-    else if (tw > 25) { cls = 'warm'; icon = '🌡️'; note = 'Leggermente alta. Usa acqua più fresca.'; }
-    container.innerHTML = `<div class="temp-result ${cls}"><div class="temp-label">Temperatura acqua consigliata</div><div class="temp-big">${icon} ${tw.toFixed(1)}°C</div><div class="temp-note" style="color:#94a3b8;">${note}</div></div>`;
+async function clearAll() {
+    if (!confirm('Cancellare tutto lo storico?')) return;
+    const snap = await historyRef().get();
+    const batch = db.batch();
+    snap.docs.forEach(d => batch.delete(d.ref));
+    await batch.commit();
 }
 
 // ── Presets ───────────────────────────────────────────────────────────
-function getPresets() { return JSON.parse(localStorage.getItem('pizzalab_presets') || '{}'); }
-function setPresets(p) { localStorage.setItem('pizzalab_presets', JSON.stringify(p)); }
+async function loadPresetsFromDB() {
+    try {
+        const doc = await presetsRef().get();
+        presetsCache = doc.exists ? doc.data() : {};
+        renderPresetBar(currentRecipe);
+    } catch(e) { presetsCache = {}; }
+}
+
+async function savePresetsDB() {
+    try { await presetsRef().set(presetsCache); } catch(e) {}
+}
+
+function getPresets() { return presetsCache; }
 
 const PRESET_FIELDS = {
     solina:  ['solina-kg','caputo-kg','acqua-kg','sale-g','lievito-g'],
@@ -757,60 +514,198 @@ function savePreset(type) {
     if (!name || !name.trim()) return;
     const vals = {};
     PRESET_FIELDS[type].forEach(id => { vals[id] = document.getElementById(id).value; });
-    const p = getPresets();
-    if (!p[type]) p[type] = [];
-    p[type].push({ name: name.trim(), vals });
-    setPresets(p);
+    if (!presetsCache[type]) presetsCache[type] = [];
+    presetsCache[type].push({ name: name.trim(), vals });
+    savePresetsDB();
     renderPresetBar(type);
     renderAllPresets();
 }
 
 function loadPreset(type, idx) {
-    const p = getPresets();
-    if (!p[type] || !p[type][idx]) return;
-    const preset = p[type][idx];
-    Object.entries(preset.vals).forEach(([id, val]) => {
-        const el = document.getElementById(id);
-        if (el) el.value = val;
-    });
+    const pr = (presetsCache[type] || [])[idx];
+    if (!pr) return;
+    Object.entries(pr.vals).forEach(([id,val]) => { const el=document.getElementById(id); if(el) el.value=val; });
 }
 
 function deletePreset(type, idx) {
-    const p = getPresets();
-    if (!p[type]) return;
-    p[type].splice(idx, 1);
-    setPresets(p);
-    renderPresetBar(type);
-    renderAllPresets();
+    if (!presetsCache[type]) return;
+    presetsCache[type].splice(idx,1);
+    savePresetsDB(); renderPresetBar(type); renderAllPresets();
 }
 
 function renderPresetBar(type) {
     const bar = document.getElementById('presets-' + type);
     if (!bar) return;
-    const p = getPresets();
-    const list = p[type] || [];
-    if (!list.length) { bar.innerHTML = ''; return; }
-    bar.innerHTML = list.map((pr, i) =>
-        `<div class="preset-chip" onclick="loadPreset('${type}',${i})">
-            ${pr.name}
-            <span class="del-preset" onclick="event.stopPropagation();deletePreset('${type}',${i})">✕</span>
-        </div>`
+    const list = (presetsCache[type] || []);
+    bar.innerHTML = list.map((pr,i) =>
+        `<div class="preset-chip" onclick="loadPreset('${type}',${i})">${pr.name}<span class="del-preset" onclick="event.stopPropagation();deletePreset('${type}',${i})">✕</span></div>`
     ).join('');
 }
 
 function renderAllPresets() {
-    const p = getPresets();
     const container = document.getElementById('all-presets-list');
-    const all = Object.entries(p).flatMap(([type, list]) => list.map((pr, i) => ({ type, i, name: pr.name })));
-    if (!all.length) { container.innerHTML = '<p style="font-size:.82rem;color:#475569;">Nessun preset salvato. Vai su una ricetta e premi "Salva come preset".</p>'; return; }
+    const TYPE_ICONS = { solina:'🌾', farro:'🌿', romano:'🍕' };
+    const all = Object.entries(presetsCache).flatMap(([type,list]) => list.map((pr,i) => ({type,i,name:pr.name})));
+    if (!all.length) { container.innerHTML = '<p style="font-size:.82rem;color:#475569;">Nessun preset. Vai su una ricetta e premi "Salva come preset".</p>'; return; }
     container.innerHTML = all.map(pr =>
-        `<div class="history-entry"><div class="entry-main"><div class="entry-left"><span class="entry-icon">${TYPE_ICONS[pr.type.charAt(0).toUpperCase()+pr.type.slice(1)]||'🍞'}</span><div><div class="entry-type">${pr.name}</div><div class="entry-time">${pr.type}</div></div></div><div class="entry-right"><button class="btn-del" onclick="deletePreset('${pr.type}',${pr.i})">✕</button></div></div></div>`
+        `<div class="history-entry"><div class="entry-main"><div class="entry-left"><span class="entry-icon">${TYPE_ICONS[pr.type]||'🍞'}</span><div><div class="entry-type">${pr.name}</div><div class="entry-time">${pr.type}</div></div></div><div class="entry-right"><button class="btn-del" onclick="deletePreset('${pr.type}',${pr.i})">✕</button></div></div></div>`
     ).join('');
 }
 
-// ── Init ──────────────────────────────────────────────────────────────
-renderPresetBar('solina');
-calcTemp();
+// ── Navigation ────────────────────────────────────────────────────────
+function showSection(name, btn) {
+    ['ricette','storico','timer','strumenti'].forEach(s => document.getElementById('section-'+s).classList.add('hidden'));
+    document.getElementById('section-'+name).classList.remove('hidden');
+    document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+    btn.classList.add('active');
+    if (name==='storico') { renderChart(); renderStorico(); }
+    if (name==='strumenti') { calcTemp(); renderAllPresets(); document.getElementById('current-code-display').textContent = getSyncCode(); }
+}
+
+function switchRecipe(type, btn) {
+    document.querySelectorAll('.recipe-form').forEach(el => el.classList.add('hidden'));
+    document.getElementById('rf-'+type).classList.remove('hidden');
+    document.querySelectorAll('.rtab').forEach(el => el.classList.remove('active'));
+    btn.classList.add('active');
+    currentRecipe = type;
+    document.getElementById('results-container').classList.add('hidden');
+    document.getElementById('results-container').innerHTML = '';
+    document.getElementById('save-panel').classList.add('hidden');
+    currentCalc = null;
+    renderPresetBar(type);
+}
+
+// ── Calculate ─────────────────────────────────────────────────────────
+function calculate(type) {
+    let data={}, ballWeight=0, targetCount=0, totalFlour=0, typeName='';
+    if (type==='solina') {
+        typeName='Solina'; ballWeight=290;
+        targetCount=parseFloat(document.getElementById('target-solina').value);
+        const s=parseFloat(document.getElementById('solina-kg').value), c=parseFloat(document.getElementById('caputo-kg').value);
+        data={'Solina':{val:s,unit:'kg',icon:'🌾'},'Caputo':{val:c,unit:'kg',icon:'🌾'},'Acqua':{val:parseFloat(document.getElementById('acqua-kg').value),unit:'kg',icon:'💧'},'Sale':{val:parseFloat(document.getElementById('sale-g').value),unit:'g',icon:'🧂'},'Lievito':{val:parseFloat(document.getElementById('lievito-g').value),unit:'g',icon:'🍞'}};
+        totalFlour=s+c;
+    } else if (type==='farro') {
+        typeName='Farro'; ballWeight=290;
+        targetCount=parseFloat(document.getElementById('target-farro').value);
+        const f=parseFloat(document.getElementById('farro-kg').value), s=parseFloat(document.getElementById('solina-farro-kg').value), c=parseFloat(document.getElementById('caputo-farro-kg').value);
+        data={'Farro':{val:f,unit:'kg',icon:'🌿'},'Solina':{val:s,unit:'kg',icon:'🌾'},'Caputo':{val:c,unit:'kg',icon:'🌾'},'Acqua':{val:parseFloat(document.getElementById('acqua-farro-kg').value),unit:'kg',icon:'💧'},'Sale':{val:parseFloat(document.getElementById('sale-farro-g').value),unit:'g',icon:'🧂'},'Lievito':{val:parseFloat(document.getElementById('lievito-farro-g').value),unit:'g',icon:'🍞'}};
+        totalFlour=f+s+c;
+    } else if (type==='romano') {
+        typeName='Romano'; ballWeight=190;
+        targetCount=parseFloat(document.getElementById('target-romano').value);
+        const fb=parseFloat(document.getElementById('farina-blu-kg').value);
+        data={'Farina Blu':{val:fb,unit:'kg',icon:'🍕'},'Acqua':{val:parseFloat(document.getElementById('acqua-romano-kg').value),unit:'kg',icon:'💧'},'Sale':{val:parseFloat(document.getElementById('sale-romano-g').value),unit:'g',icon:'🧂'},'Zucchero':{val:parseFloat(document.getElementById('zucchero-g').value),unit:'g',icon:'🍬'},'Lievito':{val:parseFloat(document.getElementById('lievito-romano-g').value),unit:'g',icon:'🍞'},'Olio':{val:parseFloat(document.getElementById('olio-oliva-kg').value),unit:'kg',icon:'🫒'}};
+        totalFlour=fb;
+    }
+    if (!targetCount||targetCount<=0) { alert('Inserisci un numero di palline valido!'); return; }
+    let totalKg=0; for(let k in data){let v=data[k].val; if(data[k].unit==='g')v/=1000; totalKg+=v;}
+    const targetKg=(targetCount*ballWeight)/1000, factor=targetKg/totalKg;
+    currentCalc={type:typeName,palline:targetCount,ballWeight};
+    const waterVal=data['Acqua']?data['Acqua'].val:0;
+    let html='<div class="results-grid">';
+    if(totalFlour>0&&waterVal>0){const hyd=((waterVal/totalFlour)*100).toFixed(1);html+=`<div class="result-card full-width hydration"><div class="res-icon">💧</div><div class="res-label" style="color:#38bdf8;">Idratazione</div><div class="res-value" style="color:#38bdf8;">${hyd}<span class="res-unit">%</span></div></div>`;}
+    for(let k in data){const scaled=data[k].val*factor, dv=data[k].unit==='kg'?scaled.toFixed(2):Math.round(scaled);html+=`<div class="result-card"><div class="res-icon">${data[k].icon}</div><div class="res-label">${k}</div><div class="res-value">${dv} <span class="res-unit">${data[k].unit}</span></div></div>`;}
+    html+=`<div class="result-card full-width highlight"><div class="res-label" style="color:#a7f3d0;">Peso Totale Impasto</div><div class="res-value" style="color:#34d399;font-size:1.4rem;">${Math.round(targetKg*1000)} <span class="res-unit">g</span></div></div></div>`;
+    const container=document.getElementById('results-container');
+    container.innerHTML=html; container.classList.remove('hidden');
+    const panel=document.getElementById('save-panel');
+    panel.classList.remove('hidden');
+    document.getElementById('save-note').value='';
+    document.getElementById('btn-save').textContent='Salva Impasto';
+    document.getElementById('btn-save').disabled=false;
+    setTimeout(()=>container.scrollIntoView({behavior:'smooth',block:'start'}),100);
+}
+
+// ── Storico render ────────────────────────────────────────────────────
+const TYPE_ICONS = { Solina:'🌾', Farro:'🌿', Romano:'🍕' };
+function todayStr() { return new Date().toISOString().split('T')[0]; }
+function fmtDate(d) {
+    const t=todayStr(), y=new Date(Date.now()-86400000).toISOString().split('T')[0];
+    if(d===t) return 'Oggi'; if(d===y) return 'Ieri';
+    const [yr,m,day]=d.split('-'); return `${day}/${m}/${yr}`;
+}
+
+function renderStorico() {
+    const h=getHistory(), list=document.getElementById('storico-list');
+    if(!h.length){list.innerHTML=`<div class="empty-state"><div class="empty-icon">🍕</div><p style="font-size:.9rem;">Nessun impasto registrato.</p><p style="font-size:.78rem;margin-top:4px;">Calcola una ricetta e premi Salva.</p></div>`;return;}
+    const grouped={};
+    h.forEach(e=>{if(!grouped[e.date])grouped[e.date]=[];grouped[e.date].push(e);});
+    const dates=Object.keys(grouped).sort().reverse();
+    let html='';
+    dates.forEach(date=>{
+        const items=grouped[date], total=items.reduce((s,i)=>s+i.palline,0);
+        html+=`<div class="day-section"><div class="day-header"><span class="day-label">${fmtDate(date)}</span><span class="day-total">Tot: ${total} palline</span></div>`;
+        items.slice().reverse().forEach(e=>{
+            html+=`<div class="history-entry"><div class="entry-main"><div class="entry-left"><span class="entry-icon">${TYPE_ICONS[e.type]||'🍞'}</span><div><div class="entry-type">${e.type}</div><div class="entry-time">${e.time}</div></div></div><div class="entry-right"><div><div class="entry-count">${e.palline}</div><div class="entry-weight">palline ${e.ballWeight}g</div></div><button class="btn-del" onclick="deleteEntry(${e.id})">✕</button></div></div>${e.note?`<div class="entry-note">📝 ${e.note}</div>`:''}</div>`;
+        });
+        html+='</div>';
+    });
+    list.innerHTML=html;
+}
+
+// ── Chart ─────────────────────────────────────────────────────────────
+function renderChart() {
+    const h=getHistory(), today=new Date(), labels=['Dom','Lun','Mar','Mer','Gio','Ven','Sab'], days=[];
+    for(let i=6;i>=0;i--){const d=new Date(today);d.setDate(d.getDate()-i);const ds=d.toISOString().split('T')[0];const total=h.filter(e=>e.date===ds).reduce((s,e)=>s+e.palline,0);days.push({ds,label:labels[d.getDay()],total,isToday:ds===todayStr()});}
+    const max=Math.max(...days.map(d=>d.total),1);
+    document.getElementById('weekly-chart').innerHTML=days.map(d=>{const pct=Math.max((d.total/max)*100,d.total?4:1);return`<div class="chart-col"><div class="chart-cnt">${d.total||''}</div><div class="chart-bar ${d.isToday?'is-today':''}" style="height:${pct}%"></div><div class="chart-day ${d.isToday?'is-today':''}">${d.label}</div></div>`;}).join('');
+}
+
+// ── Export CSV ────────────────────────────────────────────────────────
+function exportCSV() {
+    const h=getHistory(); if(!h.length){alert('Nessun dato da esportare.');return;}
+    const rows=[['Data','Ora','Tipo','Palline','Peso pallina (g)','Note']];
+    h.forEach(e=>rows.push([e.date,e.time,e.type,e.palline,e.ballWeight,e.note||'']));
+    const csv=rows.map(r=>r.map(v=>`"${v}"`).join(',')).join('\n');
+    const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+    const url=URL.createObjectURL(blob), a=document.createElement('a');
+    a.href=url; a.download='pizza-lab-storico.csv'; a.click(); URL.revokeObjectURL(url);
+}
+
+// ── Print ─────────────────────────────────────────────────────────────
+function printRecipe() {
+    if(document.getElementById('results-container').classList.contains('hidden')){alert('Calcola prima una ricetta!');return;}
+    window.print();
+}
+
+// ── Timer ─────────────────────────────────────────────────────────────
+let timerInterval=null, timerSeconds=0, timerRunning=false;
+function setTimer(h,m){document.getElementById('timer-h').value=h;document.getElementById('timer-m').value=m;}
+function timerStart(){
+    if(timerRunning)return;
+    if(!timerInterval){const h=parseInt(document.getElementById('timer-h').value)||0,m=parseInt(document.getElementById('timer-m').value)||0;timerSeconds=h*3600+m*60;if(timerSeconds<=0){alert('Imposta un tempo valido!');return;}}
+    timerRunning=true;
+    document.getElementById('btn-timer-start').classList.add('hidden');
+    document.getElementById('btn-timer-stop').classList.remove('hidden');
+    document.getElementById('timer-status').textContent='Timer in corso...';
+    if('Notification'in window&&Notification.permission==='default')Notification.requestPermission();
+    timerInterval=setInterval(()=>{
+        timerSeconds--;updateTimerDisplay();
+        if(timerSeconds<=0){clearInterval(timerInterval);timerInterval=null;timerRunning=false;document.getElementById('timer-status').textContent='✅ Lievitazione completata!';document.getElementById('btn-timer-stop').classList.add('hidden');document.getElementById('btn-timer-start').classList.remove('hidden');if('Notification'in window&&Notification.permission==='granted')new Notification('Pizza Lab Pro',{body:'🍕 Lievitazione completata! Impasto pronto.',icon:'./icon.svg'});}
+    },1000);
+}
+function timerStop(){clearInterval(timerInterval);timerInterval=null;timerRunning=false;document.getElementById('btn-timer-stop').classList.add('hidden');document.getElementById('btn-timer-start').classList.remove('hidden');document.getElementById('timer-status').textContent='In pausa';}
+function timerReset(){clearInterval(timerInterval);timerInterval=null;timerRunning=false;timerSeconds=0;document.getElementById('timer-display').textContent='00:00:00';document.getElementById('timer-display').classList.remove('urgent');document.getElementById('btn-timer-stop').classList.add('hidden');document.getElementById('btn-timer-start').classList.remove('hidden');document.getElementById('timer-status').textContent='Imposta le ore e premi Start';}
+function updateTimerDisplay(){const h=Math.floor(timerSeconds/3600),m=Math.floor((timerSeconds%3600)/60),s=timerSeconds%60,disp=document.getElementById('timer-display');disp.textContent=`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;disp.classList.toggle('urgent',timerSeconds<=60&&timerSeconds>0);}
+
+// ── Temperature ───────────────────────────────────────────────────────
+function calcTemp(){
+    const ta=parseFloat(document.getElementById('temp-ambiente').value)||20, tf=parseFloat(document.getElementById('temp-farina').value)||20, tw=72-ta-tf;
+    let cls='ok',icon='✅',note='Temperatura ideale per un impasto a 24°C.';
+    if(tw<4){cls='cold';icon='🧊';note='Usa acqua ghiacciata.';}
+    else if(tw<10){cls='cold';icon='❄️';note='Usa acqua fredda da frigo.';}
+    else if(tw>35){cls='warm';icon='⚠️';note='Troppo alta: rischia di compromettere il lievito.';}
+    else if(tw>25){cls='warm';icon='🌡️';note='Leggermente alta. Usa acqua più fresca.';}
+    document.getElementById('temp-result').innerHTML=`<div class="temp-result ${cls}"><div class="temp-label">Temperatura acqua consigliata</div><div class="temp-big">${icon} ${tw.toFixed(1)}°C</div><div class="temp-note">${note}</div></div>`;
+}
+
+// ── Start ─────────────────────────────────────────────────────────────
+if (getSyncCode()) {
+    document.getElementById('sync-overlay').classList.add('hidden');
+    initApp();
+}
+// Enter key on sync input
+document.getElementById('sync-code-input').addEventListener('keydown', e => { if(e.key==='Enter') applySyncCode(); });
 </script>
 </body>
 </html>
