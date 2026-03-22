@@ -413,12 +413,7 @@ function getCurrentUID() { return auth.currentUser ? auth.currentUser.uid : null
 
 function signInWithGoogle() {
     const provider = new firebase.auth.GoogleAuthProvider();
-    auth.signInWithPopup(provider).catch(err => {
-        // fallback a redirect su mobile se il popup è bloccato
-        if (err.code === 'auth/popup-blocked' || err.code === 'auth/popup-closed-by-user') {
-            auth.signInWithRedirect(provider);
-        }
-    });
+    auth.signInWithRedirect(provider);
 }
 
 function signOutUser() {
@@ -723,7 +718,15 @@ auth.onAuthStateChanged(user => {
     }
 });
 // Gestisce il redirect da Google su mobile
-auth.getRedirectResult().catch(() => {});
+auth.getRedirectResult().then(result => {
+    if (result && result.user) {
+        // utente loggato tramite redirect - onAuthStateChanged gestisce il resto
+    }
+}).catch(err => {
+    if (err && err.code) {
+        alert('Errore login: ' + err.message);
+    }
+});
 </script>
 </body>
 </html>
