@@ -462,7 +462,7 @@ function presetsRef() { return db.collection('users').doc(getCurrentUID()).colle
 
 // ── Migrazione dati dal vecchio codice segreto ───────────────────────
 async function migrateOldData(uid) {
-    const OLD_CODE = '12345678';
+    const OLD_CODE = 'macmiller96';
     const migrationKey = 'pizzalab_migrated_' + uid;
     if (localStorage.getItem(migrationKey)) return; // già migrato
 
