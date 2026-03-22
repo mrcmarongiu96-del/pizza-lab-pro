@@ -305,6 +305,16 @@
         <div id="results-container" class="hidden"></div>
         <div id="save-panel" class="save-panel hidden no-print">
             <div class="save-panel-title">💾 Salva impasto nello storico</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                <div class="input-group">
+                    <label class="input-label">📅 Data</label>
+                    <input type="date" id="save-date" class="input-glass" style="font-size:0.9rem;">
+                </div>
+                <div class="input-group">
+                    <label class="input-label">🧊 Cassetti in frigo</label>
+                    <input type="number" id="save-cassetti" class="input-glass" placeholder="0" min="0" style="font-size:0.9rem;">
+                </div>
+            </div>
             <div class="input-group">
                 <label class="input-label">📝 Note (opzionale)</label>
                 <textarea id="save-note" class="input-glass" placeholder="Es. lievitazione 24h, forno a legna..."></textarea>
@@ -529,13 +539,16 @@ function getHistory() { return historyCache; }
 async function confirmSave() {
     if (!currentCalc) return;
     const now = new Date();
+    const selectedDate = document.getElementById('save-date').value || now.toISOString().split('T')[0];
+    const cassetti = parseInt(document.getElementById('save-cassetti').value) || 0;
     const entry = {
         id: now.getTime(),
-        date: now.toISOString().split('T')[0],
+        date: selectedDate,
         time: now.toTimeString().slice(0,5),
         type: currentCalc.type,
         palline: currentCalc.palline,
         ballWeight: currentCalc.ballWeight,
+        cassetti: cassetti,
         note: document.getElementById('save-note').value.trim()
     };
     const btn = document.getElementById('btn-save');
@@ -682,6 +695,8 @@ function calculate(type) {
     container.innerHTML=html; container.classList.remove('hidden');
     const panel=document.getElementById('save-panel');
     panel.classList.remove('hidden');
+    document.getElementById('save-date').value=todayStr();
+    document.getElementById('save-cassetti').value='';
     document.getElementById('save-note').value='';
     document.getElementById('btn-save').textContent='Salva Impasto';
     document.getElementById('btn-save').disabled=false;
@@ -708,7 +723,7 @@ function renderStorico() {
         const items=grouped[date], total=items.reduce((s,i)=>s+i.palline,0);
         html+=`<div class="day-section"><div class="day-header"><span class="day-label">${fmtDate(date)}</span><span class="day-total">Tot: ${total} palline</span></div>`;
         items.slice().reverse().forEach(e=>{
-            html+=`<div class="history-entry"><div class="entry-main"><div class="entry-left"><span class="entry-icon">${TYPE_ICONS[e.type]||'🍞'}</span><div><div class="entry-type">${e.type}</div><div class="entry-time">${e.time}</div></div></div><div class="entry-right"><div><div class="entry-count">${e.palline}</div><div class="entry-weight">palline ${e.ballWeight}g</div></div><button class="btn-del" onclick="deleteEntry(${e.id})">✕</button></div></div>${e.note?`<div class="entry-note">📝 ${e.note}</div>`:''}</div>`;
+            html+=`<div class="history-entry"><div class="entry-main"><div class="entry-left"><span class="entry-icon">${TYPE_ICONS[e.type]||'🍞'}</span><div><div class="entry-type">${e.type}</div><div class="entry-time">${e.time}</div></div></div><div class="entry-right"><div><div class="entry-count">${e.palline}</div><div class="entry-weight">palline ${e.ballWeight}g</div></div><button class="btn-del" onclick="deleteEntry(${e.id})">✕</button></div></div>${e.cassetti?`<div class="entry-note">🧊 ${e.cassetti} cassett${e.cassetti===1?'o':'i'} in frigo</div>`:''}${e.note?`<div class="entry-note">📝 ${e.note}</div>`:''}</div>`;
         });
         html+='</div>';
     });
@@ -726,8 +741,8 @@ function renderChart() {
 // ── Export CSV ────────────────────────────────────────────────────────
 function exportCSV() {
     const h=getHistory(); if(!h.length){alert('Nessun dato da esportare.');return;}
-    const rows=[['Data','Ora','Tipo','Palline','Peso pallina (g)','Note']];
-    h.forEach(e=>rows.push([e.date,e.time,e.type,e.palline,e.ballWeight,e.note||'']));
+    const rows=[['Data','Ora','Tipo','Palline','Peso pallina (g)','Cassetti frigo','Note']];
+    h.forEach(e=>rows.push([e.date,e.time,e.type,e.palline,e.ballWeight,e.cassetti||0,e.note||'']));
     const csv=rows.map(r=>r.map(v=>`"${v}"`).join(',')).join('\n');
     const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
     const url=URL.createObjectURL(blob), a=document.createElement('a');
