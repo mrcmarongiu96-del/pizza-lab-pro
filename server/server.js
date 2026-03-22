@@ -34,60 +34,74 @@ io.on('connection', (socket) => {
     socket.data.username = username;
 
     const users = getRoomUsers(roomId);
-    const exists = users.some((u) => u.socketId === socket.id);
-
-    if (!exists) {
+    if (!users.some((u) => u.socketId === socket.id)) {
       users.push({ socketId: socket.id, username });
     }
 
     socket.emit('room-users', { users });
-
-    socket.to(roomId).emit('user-joined', {
-      socketId: socket.id,
-      username,
-    });
-
+    socket.to(roomId).emit('user-joined', { socketId: socket.id, username });
     console.log(`${username} joined ${roomId}`);
   });
 
+  // ── WebRTC signaling ──────────────────────────────────────────
   socket.on('offer', ({ to, sdp }) => {
-    io.to(to).emit('offer', {
-      from: socket.id,
-      sdp,
-    });
+    io.to(to).emit('offer', { from: socket.id, sdp });
   });
 
   socket.on('answer', ({ to, sdp }) => {
-    io.to(to).emit('answer', {
-      from: socket.id,
-      sdp,
-    });
+    io.to(to).emit('answer', { from: socket.id, sdp });
   });
 
   socket.on('ice-candidate', ({ to, candidate }) => {
-    io.to(to).emit('ice-candidate', {
+    io.to(to).emit('ice-candidate', { from: socket.id, candidate });
+  });
+
+  // ── Messaggi di testo ─────────────────────────────────────────
+  socket.on('group-message', ({ text }) => {
+    if (!text?.trim() || !socket.data.roomId) return;
+    socket.to(socket.data.roomId).emit('group-message', {
       from: socket.id,
-      candidate,
+      username: socket.data.username,
+      text: text.trim(),
+      timestamp: Date.now(),
     });
   });
 
+  socket.on('direct-message', ({ to, text }) => {
+    if (!text?.trim() || !to) return;
+    io.to(to).emit('direct-message', {
+      from: socket.id,
+      username: socket.data.username,
+      text: text.trim(),
+      timestamp: Date.now(),
+    });
+  });
+
+  // ── Indicatori di trasmissione PTT ───────────────────────────
+  socket.on('talking-start', ({ to }) => {
+    if (!socket.data.roomId) return;
+    // Broadcast a tutta la stanza per aggiornare gli indicatori UI
+    socket.to(socket.data.roomId).emit('talking-start', {
+      from: socket.id,
+      username: socket.data.username,
+      to: to || null, // null = a tutti, socketId = diretto
+    });
+  });
+
+  socket.on('talking-stop', () => {
+    if (!socket.data.roomId) return;
+    socket.to(socket.data.roomId).emit('talking-stop', { from: socket.id });
+  });
+
+  // ── Disconnessione ────────────────────────────────────────────
   socket.on('disconnect', () => {
-    const roomId = socket.data.roomId;
-    const username = socket.data.username;
+    const { roomId, username } = socket.data;
 
     if (roomId && rooms.has(roomId)) {
       const filtered = rooms.get(roomId).filter((u) => u.socketId !== socket.id);
-
-      if (filtered.length === 0) {
-        rooms.delete(roomId);
-      } else {
-        rooms.set(roomId, filtered);
-      }
-
-      socket.to(roomId).emit('user-left', {
-        socketId: socket.id,
-        username,
-      });
+      if (filtered.length === 0) rooms.delete(roomId);
+      else rooms.set(roomId, filtered);
+      socket.to(roomId).emit('user-left', { socketId: socket.id, username });
     }
 
     console.log('Disconnected:', socket.id);
