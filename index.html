@@ -460,6 +460,34 @@ function signOutUser() {
 function historyRef() { return db.collection('users').doc(getCurrentUID()).collection('history'); }
 function presetsRef() { return db.collection('users').doc(getCurrentUID()).collection('data').doc('presets'); }
 
+// ── Migrazione dati dal vecchio codice segreto ───────────────────────
+async function migrateOldData(uid) {
+    const OLD_CODE = '12345678';
+    const migrationKey = 'pizzalab_migrated_' + uid;
+    if (localStorage.getItem(migrationKey)) return; // già migrato
+
+    try {
+        // Migra storico
+        const oldHistory = await db.collection('users').doc(OLD_CODE).collection('history').get();
+        if (!oldHistory.empty) {
+            const batch = db.batch();
+            oldHistory.forEach(d => {
+                batch.set(db.collection('users').doc(uid).collection('history').doc(d.id), d.data());
+            });
+            await batch.commit();
+        }
+        // Migra presets
+        const oldPresets = await db.collection('users').doc(OLD_CODE).collection('data').doc('presets').get();
+        if (oldPresets.exists) {
+            await db.collection('users').doc(uid).collection('data').doc('presets').set(oldPresets.data());
+        }
+        localStorage.setItem(migrationKey, '1');
+        console.log('Migrazione completata: ' + oldHistory.size + ' impasti copiati');
+    } catch(e) {
+        console.warn('Migrazione fallita:', e);
+    }
+}
+
 // ── Init ──────────────────────────────────────────────────────────────
 function initApp(user) {
     // Aggiorna info account nella sezione Strumenti
@@ -468,8 +496,10 @@ function initApp(user) {
     document.getElementById('user-name').textContent = user.displayName || '';
     document.getElementById('user-email').textContent = user.email || '';
     setSyncStatus('loading');
-    startHistoryListener();
-    loadPresetsFromDB();
+    migrateOldData(user.uid).then(() => {
+        startHistoryListener();
+        loadPresetsFromDB();
+    });
     renderPresetBar('solina');
     calcTemp();
 }
