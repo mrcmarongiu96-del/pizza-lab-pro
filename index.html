@@ -15,6 +15,7 @@
     <!-- Firebase -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
     <style>
         :root { --nav-h: 70px; }
         * { box-sizing: border-box; }
@@ -137,6 +138,11 @@
         /* Sync code chip */
         .code-chip { background: rgba(99,102,241,0.15); border: 1px solid rgba(99,102,241,0.3); color: #a5b4fc; padding: 4px 10px; border-radius: 20px; font-size: 0.7rem; font-family: monospace; }
 
+        /* Google login button */
+        .btn-google { display: flex; align-items: center; justify-content: center; gap: 10px; background: white; color: #1f2937; border: none; padding: 14px 24px; border-radius: 14px; width: 100%; font-weight: 600; font-size: 0.95rem; cursor: pointer; transition: all 0.2s; font-family: 'Poppins', sans-serif; box-shadow: 0 4px 12px rgba(0,0,0,0.3); margin-top: 0.5rem; }
+        .btn-google:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,0.4); }
+        .user-avatar { width: 38px; height: 38px; border-radius: 50%; border: 2px solid rgba(139,92,246,0.4); }
+
         /* Timer */
         .timer-display { font-size: 4.5rem; font-weight: 700; text-align: center; font-variant-numeric: tabular-nums; letter-spacing: 2px; background: linear-gradient(135deg,#fff 0%,#a855f7 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; margin: 1.5rem 0; }
         .timer-display.urgent { background: linear-gradient(135deg,#f87171,#ef4444); -webkit-background-clip: text; background-clip: text; }
@@ -186,17 +192,17 @@
 </head>
 <body>
 
-<!-- Sync Code Overlay -->
+<!-- Login Overlay -->
 <div id="sync-overlay" class="sync-overlay">
     <div class="sync-card">
         <div class="sync-icon">🍕</div>
         <h2>Pizza Lab Pro</h2>
-        <p>Inserisci un <strong>codice segreto</strong> per sincronizzare i tuoi impasti su tutti i dispositivi.<br>Usa lo stesso codice su iPhone e Mac.</p>
-        <div class="input-group">
-            <input type="text" id="sync-code-input" class="input-glass text-center" placeholder="Es. marco-pizza-2024" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" style="font-size:1.1rem;padding:14px;">
-        </div>
-        <button class="btn-calc" style="margin-top:0.5rem;" onclick="applySyncCode()">Inizia →</button>
-        <p class="sync-hint">⚠️ Ricorda questo codice — serve su ogni dispositivo</p>
+        <p>Accedi con Google per sincronizzare automaticamente i tuoi impasti su tutti i dispositivi.</p>
+        <button class="btn-google" onclick="signInWithGoogle()">
+            <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+            Accedi con Google
+        </button>
+        <p class="sync-hint">I tuoi dati restano sincronizzati su tutti i tuoi dispositivi</p>
     </div>
 </div>
 
@@ -355,12 +361,15 @@
             <div id="all-presets-list"></div>
         </div>
         <div class="tool-card">
-            <div class="tool-card-title">⚙️ Sincronizzazione</div>
-            <p class="text-xs text-gray-400 mb-3">Il tuo codice attuale:</p>
-            <div class="flex items-center gap-3">
-                <span id="current-code-display" class="code-chip"></span>
-                <button class="btn-danger" onclick="changeSyncCode()">Cambia codice</button>
+            <div class="tool-card-title">👤 Account</div>
+            <div class="flex items-center gap-3" style="margin-bottom:12px;">
+                <img id="user-avatar" class="user-avatar" style="display:none;">
+                <div>
+                    <div id="user-name" style="font-size:.9rem;font-weight:600;"></div>
+                    <div id="user-email" style="font-size:.75rem;color:#94a3b8;"></div>
+                </div>
             </div>
+            <button class="btn-danger" onclick="signOutUser()">Esci dall'account</button>
         </div>
     </div>
 
@@ -386,6 +395,7 @@ const firebaseConfig = {
 };
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
+const auth = firebase.auth();
 db.enablePersistence().catch(() => {});
 
 // ── PWA ───────────────────────────────────────────────────────────────
@@ -398,33 +408,36 @@ let historyCache = [];
 let presetsCache = {};
 let unsubHistory = null;
 
-// ── Sync Code ─────────────────────────────────────────────────────────
-function getSyncCode() { return localStorage.getItem('pizzalab_code'); }
+// ── Auth ──────────────────────────────────────────────────────────────
+function getCurrentUID() { return auth.currentUser ? auth.currentUser.uid : null; }
 
-function applySyncCode() {
-    const val = document.getElementById('sync-code-input').value.trim().toLowerCase().replace(/\s+/g,'-');
-    if (val.length < 3) { alert('Inserisci almeno 3 caratteri!'); return; }
-    localStorage.setItem('pizzalab_code', val);
-    document.getElementById('sync-overlay').classList.add('hidden');
-    initApp();
+function signInWithGoogle() {
+    const provider = new firebase.auth.GoogleAuthProvider();
+    auth.signInWithPopup(provider).catch(err => {
+        // fallback a redirect su mobile se il popup è bloccato
+        if (err.code === 'auth/popup-blocked' || err.code === 'auth/popup-closed-by-user') {
+            auth.signInWithRedirect(provider);
+        }
+    });
 }
 
-function changeSyncCode() {
-    if (!confirm('Cambiare codice significa perdere accesso allo storico attuale su questo dispositivo. Continuare?')) return;
-    localStorage.removeItem('pizzalab_code');
+function signOutUser() {
+    if (!confirm('Vuoi uscire dall\'account?')) return;
     if (unsubHistory) { unsubHistory(); unsubHistory = null; }
-    document.getElementById('sync-code-input').value = '';
-    document.getElementById('sync-overlay').classList.remove('hidden');
+    auth.signOut();
 }
 
 // ── Firestore refs ────────────────────────────────────────────────────
-function historyRef() { return db.collection('users').doc(getSyncCode()).collection('history'); }
-function presetsRef() { return db.collection('users').doc(getSyncCode()).collection('data').doc('presets'); }
+function historyRef() { return db.collection('users').doc(getCurrentUID()).collection('history'); }
+function presetsRef() { return db.collection('users').doc(getCurrentUID()).collection('data').doc('presets'); }
 
 // ── Init ──────────────────────────────────────────────────────────────
-function initApp() {
-    const code = getSyncCode();
-    document.getElementById('current-code-display').textContent = code;
+function initApp(user) {
+    // Aggiorna info account nella sezione Strumenti
+    const avatar = document.getElementById('user-avatar');
+    if (user.photoURL) { avatar.src = user.photoURL; avatar.style.display = 'block'; }
+    document.getElementById('user-name').textContent = user.displayName || '';
+    document.getElementById('user-email').textContent = user.email || '';
     setSyncStatus('loading');
     startHistoryListener();
     loadPresetsFromDB();
@@ -559,7 +572,7 @@ function showSection(name, btn) {
     document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
     btn.classList.add('active');
     if (name==='storico') { renderChart(); renderStorico(); }
-    if (name==='strumenti') { calcTemp(); renderAllPresets(); document.getElementById('current-code-display').textContent = getSyncCode(); }
+    if (name==='strumenti') { calcTemp(); renderAllPresets(); }
 }
 
 function switchRecipe(type, btn) {
@@ -700,12 +713,17 @@ function calcTemp(){
 }
 
 // ── Start ─────────────────────────────────────────────────────────────
-if (getSyncCode()) {
-    document.getElementById('sync-overlay').classList.add('hidden');
-    initApp();
-}
-// Enter key on sync input
-document.getElementById('sync-code-input').addEventListener('keydown', e => { if(e.key==='Enter') applySyncCode(); });
+auth.onAuthStateChanged(user => {
+    if (user) {
+        document.getElementById('sync-overlay').classList.add('hidden');
+        initApp(user);
+    } else {
+        if (unsubHistory) { unsubHistory(); unsubHistory = null; }
+        document.getElementById('sync-overlay').classList.remove('hidden');
+    }
+});
+// Gestisce il redirect da Google su mobile
+auth.getRedirectResult().catch(() => {});
 </script>
 </body>
 </html>
