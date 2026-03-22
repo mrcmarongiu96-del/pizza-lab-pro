@@ -32,12 +32,14 @@ export default function App() {
   const [joined, setJoined] = useState(false);
   const [status, setStatus] = useState('Avvio...');
   const [isTalking, setIsTalking] = useState(false);
+  const [peerCount, setPeerCount] = useState(0);
 
   const socketRef = useRef(null);
-  const peerRef = useRef(null);
+  // Map: socketId -> RTCPeerConnection
+  const peersRef = useRef(new Map());
+  // Map: socketId -> username (for display)
+  const usersRef = useRef(new Map());
   const localStreamRef = useRef(null);
-  const remoteStreamRef = useRef(null);
-  const otherPeerIdRef = useRef(null);
 
   useEffect(() => {
     init();
@@ -66,6 +68,86 @@ export default function App() {
     }
   };
 
+  // Crea o restituisce lo stream locale (chiamato una sola volta)
+  const getLocalStream = async () => {
+    if (localStreamRef.current) return localStreamRef.current;
+    const stream = await mediaDevices.getUserMedia({ audio: true, video: false });
+    stream.getAudioTracks().forEach((track) => {
+      track.enabled = false; // silenzioso finché non si preme PTT
+    });
+    localStreamRef.current = stream;
+    return stream;
+  };
+
+  // Crea una peer connection verso un dispositivo specifico
+  const createPeerConnection = async (socketId) => {
+    if (peersRef.current.has(socketId)) return peersRef.current.get(socketId);
+
+    const pc = new RTCPeerConnection(ICE_CONFIG);
+    const stream = await getLocalStream();
+
+    // Aggiunge le tracce audio locali a questa peer connection
+    stream.getAudioTracks().forEach((track) => pc.addTrack(track, stream));
+
+    pc.onicecandidate = (event) => {
+      if (event.candidate && socketRef.current) {
+        socketRef.current.emit('ice-candidate', {
+          to: socketId,
+          candidate: event.candidate,
+        });
+      }
+    };
+
+    // Con react-native-webrtc l'audio remoto parte automaticamente
+    pc.ontrack = () => {};
+
+    pc.onconnectionstatechange = () => {
+      const state = pc.connectionState;
+      console.log(`Peer ${socketId} state: ${state}`);
+      updateStatusFromPeers();
+    };
+
+    peersRef.current.set(socketId, pc);
+    return pc;
+  };
+
+  // Crea e invia un offer verso socketId
+  const sendOffer = async (socketId) => {
+    try {
+      const pc = await createPeerConnection(socketId);
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      socketRef.current.emit('offer', { to: socketId, sdp: offer });
+    } catch (err) {
+      console.error('sendOffer error', err);
+    }
+  };
+
+  // Chiude e rimuove la peer connection verso socketId
+  const closePeer = (socketId) => {
+    const pc = peersRef.current.get(socketId);
+    if (pc) {
+      pc.close();
+      peersRef.current.delete(socketId);
+    }
+    usersRef.current.delete(socketId);
+    setPeerCount(peersRef.current.size);
+    updateStatusFromPeers();
+  };
+
+  const updateStatusFromPeers = () => {
+    const count = peersRef.current.size;
+    setPeerCount(count);
+    if (count === 0) {
+      setStatus('In attesa di altri dispositivi');
+    } else {
+      const connected = [...peersRef.current.values()].filter(
+        (pc) => pc.connectionState === 'connected'
+      ).length;
+      setStatus(`${connected}/${count} dispositivi connessi`);
+    }
+  };
+
   const connectSocket = () => {
     const socket = io(SIGNALING_SERVER_URL, {
       transports: ['websocket'],
@@ -81,123 +163,79 @@ export default function App() {
       setServerConnected(false);
       setJoined(false);
       setStatus('Server disconnesso');
-      destroyPeer();
+      destroyAllPeers();
     });
 
+    // Ricevuto all'ingresso: lista di tutti gli utenti già in stanza
+    // Questo dispositivo (il nuovo) crea l'offer verso ognuno
     socket.on('room-users', async ({ users }) => {
       const others = users.filter((u) => u.socketId !== socket.id);
-      if (others.length > 0) {
-        otherPeerIdRef.current = others[0].socketId;
-        await ensurePeerConnection();
-        await createOffer();
-        setStatus(`Collegamento con ${others[0].username}...`);
-      } else {
-        setStatus('In attesa di un altro dispositivo');
+      if (others.length === 0) {
+        setStatus('In attesa di altri dispositivi');
+        return;
       }
+      for (const user of others) {
+        usersRef.current.set(user.socketId, user.username);
+        await sendOffer(user.socketId);
+      }
+      setPeerCount(others.length);
+      setStatus(`Collegamento con ${others.length} dispositivo/i...`);
     });
 
+    // Un nuovo dispositivo è entrato: prepara la peer connection
+    // (attendi il suo offer, non mandare tu)
     socket.on('user-joined', async ({ socketId, username }) => {
-      otherPeerIdRef.current = socketId;
-      await ensurePeerConnection();
+      usersRef.current.set(socketId, username);
+      await createPeerConnection(socketId);
+      setPeerCount(peersRef.current.size);
       setStatus(`${username} è entrato`);
     });
 
+    // Ricevuto offer da un peer: rispondi con answer
     socket.on('offer', async ({ from, sdp }) => {
       try {
-        otherPeerIdRef.current = from;
-        await ensurePeerConnection();
-        await peerRef.current.setRemoteDescription(new RTCSessionDescription(sdp));
-        const answer = await peerRef.current.createAnswer();
-        await peerRef.current.setLocalDescription(answer);
+        const pc = await createPeerConnection(from);
+        await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
         socket.emit('answer', { to: from, sdp: answer });
-        setStatus('Canale audio attivo');
+        updateStatusFromPeers();
       } catch (err) {
         console.error('offer error', err);
       }
     });
 
-    socket.on('answer', async ({ sdp }) => {
+    // Ricevuto answer al nostro offer
+    socket.on('answer', async ({ from, sdp }) => {
       try {
-        if (!peerRef.current) return;
-        await peerRef.current.setRemoteDescription(new RTCSessionDescription(sdp));
-        setStatus('Canale audio attivo');
+        const pc = peersRef.current.get(from);
+        if (!pc) return;
+        await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+        updateStatusFromPeers();
       } catch (err) {
         console.error('answer error', err);
       }
     });
 
-    socket.on('ice-candidate', async ({ candidate }) => {
+    // Candidato ICE da un peer specifico
+    socket.on('ice-candidate', async ({ from, candidate }) => {
       try {
-        if (!peerRef.current || !candidate) return;
-        await peerRef.current.addIceCandidate(new RTCIceCandidate(candidate));
+        const pc = peersRef.current.get(from);
+        if (!pc || !candidate) return;
+        await pc.addIceCandidate(new RTCIceCandidate(candidate));
       } catch (err) {
         console.error('ice error', err);
       }
     });
 
-    socket.on('user-left', () => {
-      setStatus("L'altro utente è uscito");
-      otherPeerIdRef.current = null;
-      destroyPeer();
+    // Un dispositivo è uscito: chiudi solo quella connessione
+    socket.on('user-left', ({ socketId, username }) => {
+      closePeer(socketId);
+      const name = username || 'Un dispositivo';
+      setStatus(`${name} è uscito`);
     });
 
     socketRef.current = socket;
-  };
-
-  const ensurePeerConnection = async () => {
-    if (peerRef.current) return;
-
-    const pc = new RTCPeerConnection(ICE_CONFIG);
-
-    const stream = await mediaDevices.getUserMedia({
-      audio: true,
-      video: false,
-    });
-
-    stream.getAudioTracks().forEach((track) => {
-      track.enabled = false;
-      pc.addTrack(track, stream);
-    });
-
-    localStreamRef.current = stream;
-
-    pc.onicecandidate = (event) => {
-      if (event.candidate && socketRef.current && otherPeerIdRef.current) {
-        socketRef.current.emit('ice-candidate', {
-          to: otherPeerIdRef.current,
-          candidate: event.candidate,
-        });
-      }
-    };
-
-    pc.ontrack = (event) => {
-      remoteStreamRef.current = event.streams[0];
-      setStatus('Ricezione audio attiva');
-    };
-
-    pc.onconnectionstatechange = () => {
-      const state = pc.connectionState;
-      if (state === 'connected') setStatus('Pronto');
-      if (state === 'connecting') setStatus('Connessione in corso');
-      if (state === 'disconnected') setStatus('Connessione persa');
-      if (state === 'failed') setStatus('Connessione fallita');
-    };
-
-    peerRef.current = pc;
-  };
-
-  const createOffer = async () => {
-    try {
-      if (!peerRef.current || !otherPeerIdRef.current || !socketRef.current) return;
-      const offer = await peerRef.current.createOffer();
-      await peerRef.current.setLocalDescription(offer);
-      socketRef.current.emit('offer', {
-        to: otherPeerIdRef.current,
-        sdp: offer,
-      });
-    } catch (err) {
-      console.error('createOffer error', err);
-    }
   };
 
   const joinRoom = async () => {
@@ -205,65 +243,52 @@ export default function App() {
       Alert.alert('Errore', 'Inserisci nome e stanza');
       return;
     }
-
     if (!socketRef.current || !serverConnected) {
       Alert.alert('Errore', 'Server non raggiungibile');
       return;
     }
-
     socketRef.current.emit('join-room', {
       username: username.trim(),
       roomId: roomId.trim(),
     });
-
     setJoined(true);
-    setStatus(`Entrato in ${roomId}`);
+    setStatus('Entrato in stanza...');
   };
 
   const startTalking = () => {
-    if (!joined) return;
-    if (!localStreamRef.current) {
-      Alert.alert('Attendi', 'Connessione audio non pronta');
-      return;
-    }
-
+    if (!joined || !localStreamRef.current) return;
+    // Abilitare la traccia la rende attiva su tutte le peer connections
     localStreamRef.current.getAudioTracks().forEach((track) => {
       track.enabled = true;
     });
-
     setIsTalking(true);
     setStatus('Stai trasmettendo');
   };
 
   const stopTalking = () => {
     if (!localStreamRef.current) return;
-
     localStreamRef.current.getAudioTracks().forEach((track) => {
       track.enabled = false;
     });
-
     setIsTalking(false);
-    setStatus('Pronto');
+    updateStatusFromPeers();
   };
 
-  const destroyPeer = () => {
-    try {
-      if (peerRef.current) {
-        peerRef.current.close();
-        peerRef.current = null;
-      }
-      if (localStreamRef.current) {
-        localStreamRef.current.getTracks().forEach((track) => track.stop());
-        localStreamRef.current = null;
-      }
-      remoteStreamRef.current = null;
-    } catch (err) {
-      console.error('destroyPeer error', err);
+  const destroyAllPeers = () => {
+    peersRef.current.forEach((pc) => {
+      try { pc.close(); } catch (_) {}
+    });
+    peersRef.current.clear();
+    usersRef.current.clear();
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach((t) => t.stop());
+      localStreamRef.current = null;
     }
+    setPeerCount(0);
   };
 
   const cleanup = () => {
-    destroyPeer();
+    destroyAllPeers();
     if (socketRef.current) {
       socketRef.current.disconnect();
       socketRef.current = null;
@@ -276,7 +301,7 @@ export default function App() {
 
       <View style={styles.card}>
         <Text style={styles.title}>Walkie Talkie</Text>
-        <Text style={styles.subtitle}>Push-to-talk per smartphone</Text>
+        <Text style={styles.subtitle}>Push-to-talk · fino a 10 dispositivi</Text>
 
         <TextInput
           style={styles.input}
@@ -284,6 +309,7 @@ export default function App() {
           onChangeText={setUsername}
           placeholder="Nome dispositivo"
           placeholderTextColor="#94a3b8"
+          editable={!joined}
         />
 
         <TextInput
@@ -292,6 +318,7 @@ export default function App() {
           onChangeText={setRoomId}
           placeholder="Stanza / canale"
           placeholderTextColor="#94a3b8"
+          editable={!joined}
         />
 
         <TouchableOpacity
@@ -305,7 +332,14 @@ export default function App() {
         </TouchableOpacity>
 
         <View style={styles.statusBox}>
-          <Text style={styles.statusLabel}>Stato</Text>
+          <View style={styles.statusRow}>
+            <Text style={styles.statusLabel}>Stato</Text>
+            {joined && (
+              <Text style={styles.peerBadge}>
+                {peerCount} {peerCount === 1 ? 'dispositivo' : 'dispositivi'}
+              </Text>
+            )}
+          </View>
           <Text style={styles.statusText}>{status}</Text>
         </View>
 
@@ -320,12 +354,12 @@ export default function App() {
           disabled={!joined}
         >
           <Text style={styles.pttText}>
-            {isTalking ? 'PARLI ORA' : 'TIENI PREMUTO PER PARLARE'}
+            {isTalking ? 'PARLI ORA' : 'TIENI PREMUTO\nPER PARLARE'}
           </Text>
         </TouchableOpacity>
 
         <Text style={styles.info}>
-          Gli auricolari Bluetooth vengono normalmente gestiti dal sistema audio di Android/iPhone.
+          La voce viene trasmessa a tutti i dispositivi nella stessa stanza simultaneamente.
         </Text>
       </View>
     </SafeAreaView>
@@ -387,10 +421,20 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     marginBottom: 18,
   },
+  statusRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
   statusLabel: {
     color: '#94a3b8',
     fontSize: 12,
-    marginBottom: 4,
+  },
+  peerBadge: {
+    color: '#38bdf8',
+    fontSize: 12,
+    fontWeight: '600',
   },
   statusText: {
     color: '#fff',
