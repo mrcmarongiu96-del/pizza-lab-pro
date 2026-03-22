@@ -107,19 +107,41 @@
         /* Chart */
         .chart-wrap { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); border-radius: 16px; padding: 16px; margin-bottom: 16px; }
         .chart-title { font-size: 0.75rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; }
-        .chart-bars { display: flex; align-items: flex-end; justify-content: space-between; height: 120px; gap: 4px; }
-        .chart-col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 4px; height: 100%; }
-        .chart-cnt { font-size: 0.6rem; color: #64748b; min-height: 12px; }
-        .chart-stack { width: 100%; display: flex; flex-direction: column; border-radius: 4px 4px 0 0; overflow: hidden; min-height: 3px; transition: height 0.5s ease; }
-        .chart-bar-new { background: linear-gradient(to top, rgba(99,102,241,0.4), rgba(139,92,246,0.5)); }
-        .chart-bar-frigo { background: linear-gradient(to top, rgba(56,189,248,0.3), rgba(56,189,248,0.5)); }
+        .chart-bars { display: flex; align-items: flex-end; justify-content: space-between; height: 130px; gap: 2px; }
+        .chart-col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 2px; height: 100%; cursor: pointer; }
+        .chart-col:hover .chart-stack { opacity: 0.8; }
+        .chart-cnt { font-size: 0.55rem; color: #64748b; min-height: 12px; }
+        .chart-stack { width: 100%; display: flex; flex-direction: column; border-radius: 3px 3px 0 0; overflow: hidden; min-height: 2px; transition: height 0.5s ease; }
+        .chart-bar-new { background: rgba(139,92,246,0.5); }
+        .chart-bar-frigo { background: rgba(56,189,248,0.4); }
         .chart-col.is-today .chart-bar-new { background: linear-gradient(to top,#6366f1,#a855f7); }
         .chart-col.is-today .chart-bar-frigo { background: linear-gradient(to top,#0ea5e9,#38bdf8); }
-        .chart-day { font-size: 0.62rem; color: #475569; }
-        .chart-legend { display: flex; justify-content: center; gap: 16px; margin-top: 10px; font-size: 0.65rem; color: #64748b; }
+        .chart-day { font-size: 0.5rem; color: #475569; }
+        .chart-legend { display: flex; justify-content: center; gap: 16px; margin-top: 8px; font-size: 0.65rem; color: #64748b; }
         .chart-legend-dot { width: 8px; height: 8px; border-radius: 2px; display: inline-block; margin-right: 4px; vertical-align: middle; }
         .chart-legend-dot.new { background: #8b5cf6; }
         .chart-legend-dot.frigo { background: #38bdf8; }
+
+        /* Chart navigation */
+        .chart-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+        .chart-nav-title { font-size: 0.9rem; font-weight: 700; color: white; text-transform: capitalize; }
+        .chart-nav-btn { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.1); color: #94a3b8; width: 32px; height: 32px; border-radius: 10px; cursor: pointer; font-size: 1rem; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
+        .chart-nav-btn:hover { background: rgba(255,255,255,0.15); color: white; }
+        .chart-tabs { display: flex; background: rgba(0,0,0,0.2); padding: 3px; border-radius: 10px; margin-bottom: 12px; gap: 2px; }
+        .chart-tab { flex: 1; text-align: center; padding: 6px 8px; border-radius: 8px; cursor: pointer; font-size: 0.72rem; color: #64748b; font-weight: 600; transition: all 0.2s; }
+        .chart-tab.active { background: rgba(255,255,255,0.1); color: white; }
+
+        /* Stats row */
+        .chart-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; }
+        .chart-stat { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; padding: 10px 8px; text-align: center; }
+        .chart-stat-val { font-size: 1.1rem; font-weight: 700; color: white; }
+        .chart-stat-label { font-size: 0.6rem; color: #64748b; margin-top: 2px; }
+
+        /* Year heatmap */
+        .year-grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 3px; margin-top: 10px; }
+        .year-cell { aspect-ratio: 1; border-radius: 4px; cursor: pointer; transition: all 0.2s; position: relative; }
+        .year-cell:hover { transform: scale(1.2); z-index: 1; }
+        .year-cell-label { font-size: 0.5rem; color: #475569; text-align: center; margin-top: 2px; }
         .chart-day.is-today { color: #a855f7; font-weight: 700; }
 
         /* Storico */
@@ -340,9 +362,20 @@
             </div>
         </div>
         <div class="chart-wrap">
-            <div class="chart-title">Ultimi 7 giorni</div>
+            <div class="chart-tabs">
+                <div class="chart-tab active" onclick="setChartMode('week',this)">Settimana</div>
+                <div class="chart-tab" onclick="setChartMode('month',this)">Mese</div>
+                <div class="chart-tab" onclick="setChartMode('year',this)">Anno</div>
+            </div>
+            <div class="chart-nav">
+                <button class="chart-nav-btn" onclick="chartNavigate(-1)">‹</button>
+                <span class="chart-nav-title" id="chart-nav-title"></span>
+                <button class="chart-nav-btn" onclick="chartNavigate(1)">›</button>
+            </div>
             <div id="weekly-chart" class="chart-bars"></div>
+            <div id="year-chart" style="display:none"></div>
             <div class="chart-legend"><span><span class="chart-legend-dot new"></span>Nuove</span><span><span class="chart-legend-dot frigo"></span>In frigo</span></div>
+            <div id="chart-stats" class="chart-stats"></div>
         </div>
         <div id="storico-list"></div>
     </div>
@@ -739,25 +772,125 @@ function renderStorico() {
 }
 
 // ── Chart ─────────────────────────────────────────────────────────────
-function renderChart() {
-    const h=getHistory(), today=new Date(), labels=['Dom','Lun','Mar','Mer','Gio','Ven','Sab'], days=[];
-    for(let i=6;i>=0;i--){
-        const d=new Date(today);d.setDate(d.getDate()-i);
-        const ds=d.toISOString().split('T')[0];
-        const entries=h.filter(e=>e.date===ds);
-        const newPalline=entries.reduce((s,e)=>s+e.palline,0);
-        const frigoPalline=entries.reduce((s,e)=>s+(e.cassetti||0),0);
-        const total=newPalline+frigoPalline;
-        days.push({ds,label:labels[d.getDay()],newPalline,frigoPalline,total,isToday:ds===todayStr()});
-    }
-    const max=Math.max(...days.map(d=>d.total),1);
-    document.getElementById('weekly-chart').innerHTML=days.map(d=>{
-        const totalPct=Math.max((d.total/max)*100,d.total?4:1);
-        const newPct=d.total?((d.newPalline/d.total)*totalPct):0;
-        const frigoPct=d.total?((d.frigoPalline/d.total)*totalPct):0;
-        const cnt=d.total?`${d.newPalline}${d.frigoPalline?'+'+d.frigoPalline:''}`:''
-        return`<div class="chart-col ${d.isToday?'is-today':''}"><div class="chart-cnt">${cnt}</div><div class="chart-stack" style="height:${totalPct}%"><div class="chart-bar-new" style="flex:${newPct}"></div>${frigoPct?`<div class="chart-bar-frigo" style="flex:${frigoPct}"></div>`:''}</div><div class="chart-day ${d.isToday?'is-today':''}">${d.label}</div></div>`;
+let chartMode = 'week';
+let chartOffset = 0; // 0 = current period, -1 = previous, etc.
+const MONTH_NAMES = ['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
+const DAY_LABELS = ['Dom','Lun','Mar','Mer','Gio','Ven','Sab'];
+
+function setChartMode(mode, btn) {
+    chartMode = mode; chartOffset = 0;
+    document.querySelectorAll('.chart-tab').forEach(t => t.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    renderChart();
+}
+
+function chartNavigate(dir) { chartOffset += dir; renderChart(); }
+
+function getDayData(h, ds) {
+    const entries = h.filter(e => e.date === ds);
+    const newP = entries.reduce((s, e) => s + e.palline, 0);
+    const frigoP = entries.reduce((s, e) => s + (e.cassetti || 0), 0);
+    return { ds, newP, frigoP, total: newP + frigoP };
+}
+
+function renderBarChart(days, containerId) {
+    const max = Math.max(...days.map(d => d.total), 1);
+    const tds = todayStr();
+    document.getElementById(containerId).innerHTML = days.map(d => {
+        const totalPct = Math.max((d.total / max) * 100, d.total ? 4 : 1);
+        const newPct = d.total ? ((d.newP / d.total) * totalPct) : 0;
+        const frigoPct = d.total ? ((d.frigoP / d.total) * totalPct) : 0;
+        const cnt = d.total ? `${d.newP}${d.frigoP ? '+' + d.frigoP : ''}` : '';
+        const isToday = d.ds === tds;
+        return `<div class="chart-col ${isToday ? 'is-today' : ''}" title="${d.ds}"><div class="chart-cnt">${cnt}</div><div class="chart-stack" style="height:${totalPct}%"><div class="chart-bar-new" style="flex:${newPct}"></div>${frigoPct ? `<div class="chart-bar-frigo" style="flex:${frigoPct}"></div>` : ''}</div><div class="chart-day ${isToday ? 'is-today' : ''}">${d.label}</div></div>`;
     }).join('');
+}
+
+function renderStats(days) {
+    const totalNew = days.reduce((s, d) => s + d.newP, 0);
+    const totalFrigo = days.reduce((s, d) => s + d.frigoP, 0);
+    const activeDays = days.filter(d => d.total > 0).length;
+    document.getElementById('chart-stats').innerHTML = `
+        <div class="chart-stat"><div class="chart-stat-val" style="color:#a78bfa">${totalNew}</div><div class="chart-stat-label">Palline nuove</div></div>
+        <div class="chart-stat"><div class="chart-stat-val" style="color:#38bdf8">${totalFrigo}</div><div class="chart-stat-label">In frigo</div></div>
+        <div class="chart-stat"><div class="chart-stat-val">${activeDays}</div><div class="chart-stat-label">Giorni attivi</div></div>
+    `;
+}
+
+function renderChart() {
+    const h = getHistory();
+    const weeklyEl = document.getElementById('weekly-chart');
+    const yearEl = document.getElementById('year-chart');
+
+    if (chartMode === 'week') {
+        weeklyEl.style.display = ''; yearEl.style.display = 'none';
+        const ref = new Date(); ref.setDate(ref.getDate() + chartOffset * 7);
+        const dow = ref.getDay(), mondayOff = dow === 0 ? -6 : 1 - dow;
+        const monday = new Date(ref); monday.setDate(ref.getDate() + mondayOff);
+        const days = [];
+        for (let i = 0; i < 7; i++) {
+            const d = new Date(monday); d.setDate(monday.getDate() + i);
+            const ds = d.toISOString().split('T')[0];
+            const data = getDayData(h, ds);
+            days.push({ ...data, label: DAY_LABELS[d.getDay()] });
+        }
+        const sunday = new Date(monday); sunday.setDate(monday.getDate() + 6);
+        document.getElementById('chart-nav-title').textContent =
+            `${monday.getDate()} ${MONTH_NAMES[monday.getMonth()].slice(0,3)} – ${sunday.getDate()} ${MONTH_NAMES[sunday.getMonth()].slice(0,3)} ${sunday.getFullYear()}`;
+        renderBarChart(days, 'weekly-chart');
+        renderStats(days);
+
+    } else if (chartMode === 'month') {
+        weeklyEl.style.display = ''; yearEl.style.display = 'none';
+        const ref = new Date(); ref.setMonth(ref.getMonth() + chartOffset);
+        const year = ref.getFullYear(), month = ref.getMonth();
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        const days = [];
+        for (let i = 1; i <= daysInMonth; i++) {
+            const d = new Date(year, month, i);
+            const ds = d.toISOString().split('T')[0];
+            const data = getDayData(h, ds);
+            days.push({ ...data, label: String(i) });
+        }
+        document.getElementById('chart-nav-title').textContent = `${MONTH_NAMES[month]} ${year}`;
+        renderBarChart(days, 'weekly-chart');
+        renderStats(days);
+
+    } else if (chartMode === 'year') {
+        weeklyEl.style.display = 'none'; yearEl.style.display = '';
+        const ref = new Date(); ref.setFullYear(ref.getFullYear() + chartOffset);
+        const year = ref.getFullYear();
+        document.getElementById('chart-nav-title').textContent = String(year);
+        const months = [];
+        for (let m = 0; m < 12; m++) {
+            const daysInMonth = new Date(year, m + 1, 0).getDate();
+            let newP = 0, frigoP = 0;
+            for (let d = 1; d <= daysInMonth; d++) {
+                const ds = `${year}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+                const data = getDayData(h, ds);
+                newP += data.newP; frigoP += data.frigoP;
+            }
+            months.push({ m, newP, frigoP, total: newP + frigoP, label: MONTH_NAMES[m].slice(0,3) });
+        }
+        const max = Math.max(...months.map(m => m.total), 1);
+        yearEl.innerHTML = `<div class="chart-bars" style="height:110px">${months.map(mo => {
+            const totalPct = Math.max((mo.total / max) * 100, mo.total ? 4 : 1);
+            const newPct = mo.total ? ((mo.newP / mo.total) * totalPct) : 0;
+            const frigoPct = mo.total ? ((mo.frigoP / mo.total) * totalPct) : 0;
+            const cnt = mo.total ? `${mo.newP}${mo.frigoP ? '+' + mo.frigoP : ''}` : '';
+            const isCur = mo.m === new Date().getMonth() && year === new Date().getFullYear();
+            return `<div class="chart-col ${isCur ? 'is-today' : ''}" onclick="chartOffset=0;setChartMode('month',document.querySelectorAll('.chart-tab')[1]);const now=new Date();chartOffset=${mo.m}-now.getMonth()+(${year}-now.getFullYear())*12;renderChart()"><div class="chart-cnt" style="font-size:0.5rem">${cnt}</div><div class="chart-stack" style="height:${totalPct}%"><div class="chart-bar-new" style="flex:${newPct}"></div>${frigoPct ? `<div class="chart-bar-frigo" style="flex:${frigoPct}"></div>` : ''}</div><div class="chart-day ${isCur ? 'is-today' : ''}">${mo.label}</div></div>`;
+        }).join('')}</div>`;
+        const allDays = [];
+        for (let m = 0; m < 12; m++) {
+            const dim = new Date(year, m + 1, 0).getDate();
+            for (let d = 1; d <= dim; d++) {
+                const ds = `${year}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+                allDays.push(getDayData(h, ds));
+            }
+        }
+        renderStats(allDays);
+    }
 }
 
 // ── Export CSV ────────────────────────────────────────────────────────
