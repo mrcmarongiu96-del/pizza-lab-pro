@@ -1,0 +1,22 @@
+{
+  "expo": {
+    "name": "WalkieTalkie",
+    "slug": "walkie-talkie",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "ios": {
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "L'app usa il microfono per la comunicazione audio push-to-talk."
+      }
+    },
+    "android": {
+      "permissions": [
+        "RECORD_AUDIO",
+        "MODIFY_AUDIO_SETTINGS",
+        "INTERNET"
+      ],
+      "package": "com.example.walkietalkie"
+    }
+  }
+}
