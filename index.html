@@ -413,7 +413,14 @@ function getCurrentUID() { return auth.currentUser ? auth.currentUser.uid : null
 
 function signInWithGoogle() {
     const provider = new firebase.auth.GoogleAuthProvider();
-    auth.signInWithRedirect(provider);
+    auth.signInWithPopup(provider).catch(err => {
+        // Se il popup è bloccato, usa il redirect come fallback
+        if (err.code === 'auth/popup-blocked' || err.code === 'auth/popup-closed-by-user') {
+            auth.signInWithRedirect(provider);
+        } else if (err.code) {
+            alert('Errore login: ' + err.message);
+        }
+    });
 }
 
 function signOutUser() {

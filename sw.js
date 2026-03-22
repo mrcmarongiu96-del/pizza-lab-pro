@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pizzalab-v5';
+const CACHE_NAME = 'pizzalab-v6';
 const LOCAL_FILES = ['./', './index.html', './manifest.json', './icon.svg'];
 
 self.addEventListener('install', event => {
