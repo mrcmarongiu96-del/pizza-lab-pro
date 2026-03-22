@@ -107,12 +107,19 @@
         /* Chart */
         .chart-wrap { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); border-radius: 16px; padding: 16px; margin-bottom: 16px; }
         .chart-title { font-size: 0.75rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; }
-        .chart-bars { display: flex; align-items: flex-end; justify-content: space-between; height: 100px; gap: 4px; }
+        .chart-bars { display: flex; align-items: flex-end; justify-content: space-between; height: 120px; gap: 4px; }
         .chart-col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 4px; height: 100%; }
         .chart-cnt { font-size: 0.6rem; color: #64748b; min-height: 12px; }
-        .chart-bar { width: 100%; background: rgba(99,102,241,0.3); border-radius: 4px 4px 0 0; min-height: 3px; transition: height 0.5s ease; }
-        .chart-bar.is-today { background: linear-gradient(to top,#6366f1,#a855f7); }
+        .chart-stack { width: 100%; display: flex; flex-direction: column; border-radius: 4px 4px 0 0; overflow: hidden; min-height: 3px; transition: height 0.5s ease; }
+        .chart-bar-new { background: linear-gradient(to top, rgba(99,102,241,0.4), rgba(139,92,246,0.5)); }
+        .chart-bar-frigo { background: linear-gradient(to top, rgba(56,189,248,0.3), rgba(56,189,248,0.5)); }
+        .chart-col.is-today .chart-bar-new { background: linear-gradient(to top,#6366f1,#a855f7); }
+        .chart-col.is-today .chart-bar-frigo { background: linear-gradient(to top,#0ea5e9,#38bdf8); }
         .chart-day { font-size: 0.62rem; color: #475569; }
+        .chart-legend { display: flex; justify-content: center; gap: 16px; margin-top: 10px; font-size: 0.65rem; color: #64748b; }
+        .chart-legend-dot { width: 8px; height: 8px; border-radius: 2px; display: inline-block; margin-right: 4px; vertical-align: middle; }
+        .chart-legend-dot.new { background: #8b5cf6; }
+        .chart-legend-dot.frigo { background: #38bdf8; }
         .chart-day.is-today { color: #a855f7; font-weight: 700; }
 
         /* Storico */
@@ -333,8 +340,9 @@
             </div>
         </div>
         <div class="chart-wrap">
-            <div class="chart-title">Ultimi 7 giorni — palline totali</div>
+            <div class="chart-title">Ultimi 7 giorni</div>
             <div id="weekly-chart" class="chart-bars"></div>
+            <div class="chart-legend"><span><span class="chart-legend-dot new"></span>Nuove</span><span><span class="chart-legend-dot frigo"></span>In frigo</span></div>
         </div>
         <div id="storico-list"></div>
     </div>
@@ -733,9 +741,23 @@ function renderStorico() {
 // ── Chart ─────────────────────────────────────────────────────────────
 function renderChart() {
     const h=getHistory(), today=new Date(), labels=['Dom','Lun','Mar','Mer','Gio','Ven','Sab'], days=[];
-    for(let i=6;i>=0;i--){const d=new Date(today);d.setDate(d.getDate()-i);const ds=d.toISOString().split('T')[0];const total=h.filter(e=>e.date===ds).reduce((s,e)=>s+e.palline,0);days.push({ds,label:labels[d.getDay()],total,isToday:ds===todayStr()});}
+    for(let i=6;i>=0;i--){
+        const d=new Date(today);d.setDate(d.getDate()-i);
+        const ds=d.toISOString().split('T')[0];
+        const entries=h.filter(e=>e.date===ds);
+        const newPalline=entries.reduce((s,e)=>s+e.palline,0);
+        const frigoPalline=entries.reduce((s,e)=>s+(e.cassetti||0),0);
+        const total=newPalline+frigoPalline;
+        days.push({ds,label:labels[d.getDay()],newPalline,frigoPalline,total,isToday:ds===todayStr()});
+    }
     const max=Math.max(...days.map(d=>d.total),1);
-    document.getElementById('weekly-chart').innerHTML=days.map(d=>{const pct=Math.max((d.total/max)*100,d.total?4:1);return`<div class="chart-col"><div class="chart-cnt">${d.total||''}</div><div class="chart-bar ${d.isToday?'is-today':''}" style="height:${pct}%"></div><div class="chart-day ${d.isToday?'is-today':''}">${d.label}</div></div>`;}).join('');
+    document.getElementById('weekly-chart').innerHTML=days.map(d=>{
+        const totalPct=Math.max((d.total/max)*100,d.total?4:1);
+        const newPct=d.total?((d.newPalline/d.total)*totalPct):0;
+        const frigoPct=d.total?((d.frigoPalline/d.total)*totalPct):0;
+        const cnt=d.total?`${d.newPalline}${d.frigoPalline?'+'+d.frigoPalline:''}`:''
+        return`<div class="chart-col ${d.isToday?'is-today':''}"><div class="chart-cnt">${cnt}</div><div class="chart-stack" style="height:${totalPct}%"><div class="chart-bar-new" style="flex:${newPct}"></div>${frigoPct?`<div class="chart-bar-frigo" style="flex:${frigoPct}"></div>`:''}</div><div class="chart-day ${d.isToday?'is-today':''}">${d.label}</div></div>`;
+    }).join('');
 }
 
 // ── Export CSV ────────────────────────────────────────────────────────
