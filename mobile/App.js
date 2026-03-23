@@ -23,7 +23,7 @@ import {
 } from 'react-native-webrtc';
 
 // ⚠️  CAMBIA QUESTO con l'IP del tuo server
-const SIGNALING_SERVER_URL = 'http://192.168.1.100:3000';
+const SIGNALING_SERVER_URL = 'http://192.168.1.132:3000';
 
 const ICE_CONFIG = {
   iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
