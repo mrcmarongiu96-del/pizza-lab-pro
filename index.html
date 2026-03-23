@@ -112,15 +112,10 @@
         .chart-col:hover .chart-stack { opacity: 0.8; }
         .chart-cnt { font-size: 0.55rem; color: #64748b; min-height: 12px; }
         .chart-stack { width: 100%; display: flex; flex-direction: column; border-radius: 3px 3px 0 0; overflow: hidden; min-height: 2px; transition: height 0.5s ease; }
-        .chart-bar-new { background: rgba(139,92,246,0.5); }
-        .chart-bar-frigo { background: rgba(56,189,248,0.4); }
-        .chart-col.is-today .chart-bar-new { background: linear-gradient(to top,#6366f1,#a855f7); }
-        .chart-col.is-today .chart-bar-frigo { background: linear-gradient(to top,#0ea5e9,#38bdf8); }
         .chart-day { font-size: 0.5rem; color: #475569; }
-        .chart-legend { display: flex; justify-content: center; gap: 16px; margin-top: 8px; font-size: 0.65rem; color: #64748b; }
-        .chart-legend-dot { width: 8px; height: 8px; border-radius: 2px; display: inline-block; margin-right: 4px; vertical-align: middle; }
-        .chart-legend-dot.new { background: #8b5cf6; }
-        .chart-legend-dot.frigo { background: #38bdf8; }
+        .chart-legend { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px 10px; margin-top: 10px; font-size: 0.6rem; color: #64748b; }
+        .chart-legend span { display: flex; align-items: center; gap: 4px; }
+        .chart-legend-dot { width: 8px; height: 8px; border-radius: 2px; display: inline-block; flex-shrink: 0; }
 
         /* Chart navigation */
         .chart-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
@@ -340,7 +335,7 @@
                     <input type="date" id="save-date" class="input-glass" style="font-size:0.9rem;">
                 </div>
                 <div class="input-group">
-                    <label class="input-label">🧊 Cassetti in frigo</label>
+                    <label class="input-label">🧊 Palline in frigo</label>
                     <input type="number" id="save-cassetti" class="input-glass" placeholder="0" min="0" style="font-size:0.9rem;">
                 </div>
             </div>
@@ -374,8 +369,26 @@
             </div>
             <div id="weekly-chart" class="chart-bars"></div>
             <div id="year-chart" style="display:none"></div>
-            <div class="chart-legend"><span><span class="chart-legend-dot new"></span>Nuove</span><span><span class="chart-legend-dot frigo"></span>In frigo</span></div>
+            <div class="chart-legend">
+                <span><span class="chart-legend-dot" style="background:#F97316"></span>Solina nuove</span>
+                <span><span class="chart-legend-dot" style="background:#22C55E"></span>Farro nuove</span>
+                <span><span class="chart-legend-dot" style="background:#3B82F6"></span>Normale nuove</span>
+                <span><span class="chart-legend-dot" style="background:#7C2D12"></span>Solina frigo</span>
+                <span><span class="chart-legend-dot" style="background:#14532D"></span>Farro frigo</span>
+                <span><span class="chart-legend-dot" style="background:#1E3A8A"></span>Normale frigo</span>
+            </div>
             <div id="chart-stats" class="chart-stats"></div>
+        </div>
+        <div class="chart-wrap">
+            <div class="chart-title">Consumi giornalieri</div>
+            <div id="cons-weekly-chart" class="chart-bars"></div>
+            <div id="cons-year-chart" style="display:none"></div>
+            <div class="chart-legend">
+                <span><span class="chart-legend-dot" style="background:#F97316"></span>Solina</span>
+                <span><span class="chart-legend-dot" style="background:#22C55E"></span>Farro</span>
+                <span><span class="chart-legend-dot" style="background:#3B82F6"></span>Normale</span>
+            </div>
+            <div id="cons-stats" class="chart-stats"></div>
         </div>
         <div id="storico-list"></div>
     </div>
@@ -764,7 +777,7 @@ function renderStorico() {
         const items=grouped[date], total=items.reduce((s,i)=>s+i.palline,0);
         html+=`<div class="day-section"><div class="day-header"><span class="day-label">${fmtDate(date)}</span><span class="day-total">Tot: ${total} palline</span></div>`;
         items.slice().reverse().forEach(e=>{
-            html+=`<div class="history-entry"><div class="entry-main"><div class="entry-left"><span class="entry-icon">${TYPE_ICONS[e.type]||'🍞'}</span><div><div class="entry-type">${e.type}</div><div class="entry-time">${e.time}</div></div></div><div class="entry-right"><div><div class="entry-count">${e.palline}</div><div class="entry-weight">palline ${e.ballWeight}g</div></div><button class="btn-del" onclick="deleteEntry(${e.id})">✕</button></div></div>${e.cassetti?`<div class="entry-note">🧊 ${e.cassetti} cassett${e.cassetti===1?'o':'i'} in frigo</div>`:''}${e.note?`<div class="entry-note">📝 ${e.note}</div>`:''}</div>`;
+            html+=`<div class="history-entry"><div class="entry-main"><div class="entry-left"><span class="entry-icon">${TYPE_ICONS[e.type]||'🍞'}</span><div><div class="entry-type">${e.type}</div><div class="entry-time">${e.time}</div></div></div><div class="entry-right"><div><div class="entry-count">${e.palline}</div><div class="entry-weight">palline ${e.ballWeight}g</div></div><button class="btn-del" onclick="deleteEntry(${e.id})">✕</button></div></div>${e.cassetti?`<div class="entry-note">🧊 ${e.cassetti} pallin${e.cassetti===1?'a':'e'} in frigo</div>`:''}${e.note?`<div class="entry-note">📝 ${e.note}</div>`:''}</div>`;
         });
         html+='</div>';
     });
@@ -777,6 +790,15 @@ let chartOffset = 0; // 0 = current period, -1 = previous, etc.
 const MONTH_NAMES = ['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
 const DAY_LABELS = ['Dom','Lun','Mar','Mer','Gio','Ven','Sab'];
 
+const CHART_COLORS = {
+    newSolina:    '#F97316',
+    newFarro:     '#22C55E',
+    newNormale:   '#3B82F6',
+    frigoSolina:  '#7C2D12',
+    frigoFarro:   '#14532D',
+    frigoNormale: '#1E3A8A'
+};
+
 function setChartMode(mode, btn) {
     chartMode = mode; chartOffset = 0;
     document.querySelectorAll('.chart-tab').forEach(t => t.classList.remove('active'));
@@ -788,9 +810,35 @@ function chartNavigate(dir) { chartOffset += dir; renderChart(); }
 
 function getDayData(h, ds) {
     const entries = h.filter(e => e.date === ds);
-    const newP = entries.reduce((s, e) => s + e.palline, 0);
-    const frigoP = entries.reduce((s, e) => s + (e.cassetti || 0), 0);
-    return { ds, newP, frigoP, total: newP + frigoP };
+    const r = { ds, newSolina:0, newFarro:0, newNormale:0, frigoSolina:0, frigoFarro:0, frigoNormale:0 };
+    entries.forEach(e => {
+        const p = e.palline || 0, c = e.cassetti || 0;
+        if (e.type === 'Solina')     { r.newSolina  += p; r.frigoSolina  += c; }
+        else if (e.type === 'Farro') { r.newFarro   += p; r.frigoFarro   += c; }
+        else                          { r.newNormale += p; r.frigoNormale += c; }
+    });
+    r.newP   = r.newSolina   + r.newFarro   + r.newNormale;
+    r.frigoP = r.frigoSolina + r.frigoFarro + r.frigoNormale;
+    r.total  = r.newP + r.frigoP;
+    return r;
+}
+
+function getConsumptionData(h, ds) {
+    const prev = new Date(ds + 'T12:00:00');
+    prev.setDate(prev.getDate() - 1);
+    const prevDs = prev.toISOString().split('T')[0];
+    const today = getDayData(h, ds);
+    const yest  = getDayData(h, prevDs);
+    const solina  = Math.max(0, today.newSolina  + yest.frigoSolina  - today.frigoSolina);
+    const farro   = Math.max(0, today.newFarro   + yest.frigoFarro   - today.frigoFarro);
+    const normale = Math.max(0, today.newNormale + yest.frigoNormale - today.frigoNormale);
+    return { ds, solina, farro, normale, total: solina + farro + normale };
+}
+
+function makeStack(segs) {
+    return segs.filter(s => s.val > 0).map(s =>
+        `<div style="flex:${s.val};background:${s.color}"></div>`
+    ).join('');
 }
 
 function renderBarChart(days, containerId) {
@@ -798,32 +846,70 @@ function renderBarChart(days, containerId) {
     const tds = todayStr();
     document.getElementById(containerId).innerHTML = days.map(d => {
         const totalPct = Math.max((d.total / max) * 100, d.total ? 4 : 1);
-        const newPct = d.total ? ((d.newP / d.total) * totalPct) : 0;
-        const frigoPct = d.total ? ((d.frigoP / d.total) * totalPct) : 0;
-        const cnt = d.total ? `${d.newP}${d.frigoP ? '+' + d.frigoP : ''}` : '';
+        const cnt = d.total ? d.total : '';
         const isToday = d.ds === tds;
-        return `<div class="chart-col ${isToday ? 'is-today' : ''}" title="${d.ds}"><div class="chart-cnt">${cnt}</div><div class="chart-stack" style="height:${totalPct}%"><div class="chart-bar-new" style="flex:${newPct}"></div>${frigoPct ? `<div class="chart-bar-frigo" style="flex:${frigoPct}"></div>` : ''}</div><div class="chart-day ${isToday ? 'is-today' : ''}">${d.label}</div></div>`;
+        const stack = makeStack([
+            { val: d.newSolina,    color: CHART_COLORS.newSolina    },
+            { val: d.newFarro,     color: CHART_COLORS.newFarro     },
+            { val: d.newNormale,   color: CHART_COLORS.newNormale   },
+            { val: d.frigoSolina,  color: CHART_COLORS.frigoSolina  },
+            { val: d.frigoFarro,   color: CHART_COLORS.frigoFarro   },
+            { val: d.frigoNormale, color: CHART_COLORS.frigoNormale },
+        ]);
+        return `<div class="chart-col${isToday ? ' is-today' : ''}" title="${d.ds}"><div class="chart-cnt">${cnt}</div><div class="chart-stack" style="height:${totalPct}%">${stack}</div><div class="chart-day${isToday ? ' is-today' : ''}">${d.label}</div></div>`;
     }).join('');
 }
 
+function renderConsumptionBarChart(days, h, containerId) {
+    const consData = days.map(d => ({ ...getConsumptionData(h, d.ds), label: d.label }));
+    const max = Math.max(...consData.map(d => d.total), 1);
+    const tds = todayStr();
+    document.getElementById(containerId).innerHTML = consData.map(d => {
+        const totalPct = Math.max((d.total / max) * 100, d.total ? 4 : 1);
+        const cnt = d.total ? d.total : '';
+        const isToday = d.ds === tds;
+        const stack = makeStack([
+            { val: d.solina,  color: CHART_COLORS.newSolina  },
+            { val: d.farro,   color: CHART_COLORS.newFarro   },
+            { val: d.normale, color: CHART_COLORS.newNormale },
+        ]);
+        return `<div class="chart-col${isToday ? ' is-today' : ''}" title="${d.ds}"><div class="chart-cnt">${cnt}</div><div class="chart-stack" style="height:${totalPct}%">${stack}</div><div class="chart-day${isToday ? ' is-today' : ''}">${d.label}</div></div>`;
+    }).join('');
+    return consData;
+}
+
 function renderStats(days) {
-    const totalNew = days.reduce((s, d) => s + d.newP, 0);
+    const totalNew   = days.reduce((s, d) => s + d.newP, 0);
     const totalFrigo = days.reduce((s, d) => s + d.frigoP, 0);
     const activeDays = days.filter(d => d.total > 0).length;
     document.getElementById('chart-stats').innerHTML = `
         <div class="chart-stat"><div class="chart-stat-val" style="color:#a78bfa">${totalNew}</div><div class="chart-stat-label">Palline nuove</div></div>
-        <div class="chart-stat"><div class="chart-stat-val" style="color:#38bdf8">${totalFrigo}</div><div class="chart-stat-label">In frigo</div></div>
+        <div class="chart-stat"><div class="chart-stat-val" style="color:#38bdf8">${totalFrigo}</div><div class="chart-stat-label">Palline frigo</div></div>
         <div class="chart-stat"><div class="chart-stat-val">${activeDays}</div><div class="chart-stat-label">Giorni attivi</div></div>
+    `;
+}
+
+function renderConsumptionStats(consData) {
+    const totalSolina  = consData.reduce((s, d) => s + (d.solina  || 0), 0);
+    const totalFarro   = consData.reduce((s, d) => s + (d.farro   || 0), 0);
+    const totalNormale = consData.reduce((s, d) => s + (d.normale || 0), 0);
+    document.getElementById('cons-stats').innerHTML = `
+        <div class="chart-stat"><div class="chart-stat-val" style="color:${CHART_COLORS.newSolina}">${totalSolina}</div><div class="chart-stat-label">Solina</div></div>
+        <div class="chart-stat"><div class="chart-stat-val" style="color:${CHART_COLORS.newFarro}">${totalFarro}</div><div class="chart-stat-label">Farro</div></div>
+        <div class="chart-stat"><div class="chart-stat-val" style="color:${CHART_COLORS.newNormale}">${totalNormale}</div><div class="chart-stat-label">Normale</div></div>
     `;
 }
 
 function renderChart() {
     const h = getHistory();
     const weeklyEl = document.getElementById('weekly-chart');
-    const yearEl = document.getElementById('year-chart');
+    const yearEl   = document.getElementById('year-chart');
+    const consWeeklyEl = document.getElementById('cons-weekly-chart');
+    const consYearEl   = document.getElementById('cons-year-chart');
 
     if (chartMode === 'week') {
         weeklyEl.style.display = ''; yearEl.style.display = 'none';
+        consWeeklyEl.style.display = ''; consYearEl.style.display = 'none';
         const ref = new Date(); ref.setDate(ref.getDate() + chartOffset * 7);
         const dow = ref.getDay(), mondayOff = dow === 0 ? -6 : 1 - dow;
         const monday = new Date(ref); monday.setDate(ref.getDate() + mondayOff);
@@ -831,17 +917,19 @@ function renderChart() {
         for (let i = 0; i < 7; i++) {
             const d = new Date(monday); d.setDate(monday.getDate() + i);
             const ds = d.toISOString().split('T')[0];
-            const data = getDayData(h, ds);
-            days.push({ ...data, label: DAY_LABELS[d.getDay()] });
+            days.push({ ...getDayData(h, ds), label: DAY_LABELS[d.getDay()] });
         }
         const sunday = new Date(monday); sunday.setDate(monday.getDate() + 6);
         document.getElementById('chart-nav-title').textContent =
             `${monday.getDate()} ${MONTH_NAMES[monday.getMonth()].slice(0,3)} – ${sunday.getDate()} ${MONTH_NAMES[sunday.getMonth()].slice(0,3)} ${sunday.getFullYear()}`;
         renderBarChart(days, 'weekly-chart');
         renderStats(days);
+        const consData = renderConsumptionBarChart(days, h, 'cons-weekly-chart');
+        renderConsumptionStats(consData);
 
     } else if (chartMode === 'month') {
         weeklyEl.style.display = ''; yearEl.style.display = 'none';
+        consWeeklyEl.style.display = ''; consYearEl.style.display = 'none';
         const ref = new Date(); ref.setMonth(ref.getMonth() + chartOffset);
         const year = ref.getFullYear(), month = ref.getMonth();
         const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -849,54 +937,93 @@ function renderChart() {
         for (let i = 1; i <= daysInMonth; i++) {
             const d = new Date(year, month, i);
             const ds = d.toISOString().split('T')[0];
-            const data = getDayData(h, ds);
-            days.push({ ...data, label: String(i) });
+            days.push({ ...getDayData(h, ds), label: String(i) });
         }
         document.getElementById('chart-nav-title').textContent = `${MONTH_NAMES[month]} ${year}`;
         renderBarChart(days, 'weekly-chart');
         renderStats(days);
+        const consData = renderConsumptionBarChart(days, h, 'cons-weekly-chart');
+        renderConsumptionStats(consData);
 
     } else if (chartMode === 'year') {
         weeklyEl.style.display = 'none'; yearEl.style.display = '';
+        consWeeklyEl.style.display = 'none'; consYearEl.style.display = '';
         const ref = new Date(); ref.setFullYear(ref.getFullYear() + chartOffset);
         const year = ref.getFullYear();
         document.getElementById('chart-nav-title').textContent = String(year);
+
+        // Produzione per mese
         const months = [];
         for (let m = 0; m < 12; m++) {
-            const daysInMonth = new Date(year, m + 1, 0).getDate();
-            let newP = 0, frigoP = 0;
-            for (let d = 1; d <= daysInMonth; d++) {
+            const dim = new Date(year, m + 1, 0).getDate();
+            let newSolina=0, newFarro=0, newNormale=0, frigoSolina=0, frigoFarro=0, frigoNormale=0;
+            for (let d = 1; d <= dim; d++) {
                 const ds = `${year}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
                 const data = getDayData(h, ds);
-                newP += data.newP; frigoP += data.frigoP;
+                newSolina += data.newSolina; newFarro += data.newFarro; newNormale += data.newNormale;
+                frigoSolina += data.frigoSolina; frigoFarro += data.frigoFarro; frigoNormale += data.frigoNormale;
             }
-            months.push({ m, newP, frigoP, total: newP + frigoP, label: MONTH_NAMES[m].slice(0,3) });
+            const newP = newSolina+newFarro+newNormale, frigoP = frigoSolina+frigoFarro+frigoNormale;
+            months.push({ m, newSolina, newFarro, newNormale, frigoSolina, frigoFarro, frigoNormale, newP, frigoP, total: newP+frigoP, label: MONTH_NAMES[m].slice(0,3) });
         }
-        const max = Math.max(...months.map(m => m.total), 1);
+        const maxP = Math.max(...months.map(mo => mo.total), 1);
         yearEl.innerHTML = `<div class="chart-bars" style="height:110px">${months.map(mo => {
-            const totalPct = Math.max((mo.total / max) * 100, mo.total ? 4 : 1);
-            const newPct = mo.total ? ((mo.newP / mo.total) * totalPct) : 0;
-            const frigoPct = mo.total ? ((mo.frigoP / mo.total) * totalPct) : 0;
-            const cnt = mo.total ? `${mo.newP}${mo.frigoP ? '+' + mo.frigoP : ''}` : '';
+            const totalPct = Math.max((mo.total / maxP) * 100, mo.total ? 4 : 1);
+            const cnt = mo.total ? mo.total : '';
             const isCur = mo.m === new Date().getMonth() && year === new Date().getFullYear();
-            return `<div class="chart-col ${isCur ? 'is-today' : ''}" onclick="chartOffset=0;setChartMode('month',document.querySelectorAll('.chart-tab')[1]);const now=new Date();chartOffset=${mo.m}-now.getMonth()+(${year}-now.getFullYear())*12;renderChart()"><div class="chart-cnt" style="font-size:0.5rem">${cnt}</div><div class="chart-stack" style="height:${totalPct}%"><div class="chart-bar-new" style="flex:${newPct}"></div>${frigoPct ? `<div class="chart-bar-frigo" style="flex:${frigoPct}"></div>` : ''}</div><div class="chart-day ${isCur ? 'is-today' : ''}">${mo.label}</div></div>`;
+            const stack = makeStack([
+                { val: mo.newSolina,    color: CHART_COLORS.newSolina    },
+                { val: mo.newFarro,     color: CHART_COLORS.newFarro     },
+                { val: mo.newNormale,   color: CHART_COLORS.newNormale   },
+                { val: mo.frigoSolina,  color: CHART_COLORS.frigoSolina  },
+                { val: mo.frigoFarro,   color: CHART_COLORS.frigoFarro   },
+                { val: mo.frigoNormale, color: CHART_COLORS.frigoNormale },
+            ]);
+            return `<div class="chart-col${isCur ? ' is-today' : ''}" onclick="chartOffset=0;setChartMode('month',document.querySelectorAll('.chart-tab')[1]);const now=new Date();chartOffset=${mo.m}-now.getMonth()+(${year}-now.getFullYear())*12;renderChart()"><div class="chart-cnt" style="font-size:0.5rem">${cnt}</div><div class="chart-stack" style="height:${totalPct}%">${stack}</div><div class="chart-day${isCur ? ' is-today' : ''}">${mo.label}</div></div>`;
         }).join('')}</div>`;
-        const allDays = [];
+
+        // Consumi per mese
+        const consMonths = [];
         for (let m = 0; m < 12; m++) {
             const dim = new Date(year, m + 1, 0).getDate();
+            let solina=0, farro=0, normale=0;
+            for (let d = 1; d <= dim; d++) {
+                const ds = `${year}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+                const c = getConsumptionData(h, ds);
+                solina += c.solina; farro += c.farro; normale += c.normale;
+            }
+            consMonths.push({ m, solina, farro, normale, total: solina+farro+normale, label: MONTH_NAMES[m].slice(0,3) });
+        }
+        const maxC = Math.max(...consMonths.map(mo => mo.total), 1);
+        consYearEl.innerHTML = `<div class="chart-bars" style="height:110px">${consMonths.map(mo => {
+            const totalPct = Math.max((mo.total / maxC) * 100, mo.total ? 4 : 1);
+            const cnt = mo.total ? mo.total : '';
+            const isCur = mo.m === new Date().getMonth() && year === new Date().getFullYear();
+            const stack = makeStack([
+                { val: mo.solina,  color: CHART_COLORS.newSolina  },
+                { val: mo.farro,   color: CHART_COLORS.newFarro   },
+                { val: mo.normale, color: CHART_COLORS.newNormale },
+            ]);
+            return `<div class="chart-col${isCur ? ' is-today' : ''}"><div class="chart-cnt" style="font-size:0.5rem">${cnt}</div><div class="chart-stack" style="height:${totalPct}%">${stack}</div><div class="chart-day${isCur ? ' is-today' : ''}">${mo.label}</div></div>`;
+        }).join('')}</div>`;
+
+        const allDays = [];
+        for (let m = 0; m < 12; m++) {
+            const dim = new Date(year, m+1, 0).getDate();
             for (let d = 1; d <= dim; d++) {
                 const ds = `${year}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
                 allDays.push(getDayData(h, ds));
             }
         }
         renderStats(allDays);
+        renderConsumptionStats(consMonths);
     }
 }
 
 // ── Export CSV ────────────────────────────────────────────────────────
 function exportCSV() {
     const h=getHistory(); if(!h.length){alert('Nessun dato da esportare.');return;}
-    const rows=[['Data','Ora','Tipo','Palline','Peso pallina (g)','Cassetti frigo','Note']];
+    const rows=[['Data','Ora','Tipo','Palline','Peso pallina (g)','Palline frigo','Note']];
     h.forEach(e=>rows.push([e.date,e.time,e.type,e.palline,e.ballWeight,e.cassetti||0,e.note||'']));
     const csv=rows.map(r=>r.map(v=>`"${v}"`).join(',')).join('\n');
     const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
