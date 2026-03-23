@@ -1,5 +1,6 @@
 const express = require('express');
 const http = require('http');
+const path = require('path');
 const { Server } = require('socket.io');
 
 const app = express();
@@ -14,8 +15,11 @@ const io = new Server(server, {
 
 const rooms = new Map();
 
+// Serve static files from project root
+app.use(express.static(path.join(__dirname, '..')));
+
 app.get('/', (req, res) => {
-  res.send('Walkie Talkie signaling server online');
+  res.sendFile(path.join(__dirname, '..', 'walkie.html'));
 });
 
 function getRoomUsers(roomId) {
