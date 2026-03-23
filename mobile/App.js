@@ -11,6 +11,7 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  Vibration,
 } from 'react-native';
 import { Audio } from 'expo-av';
 import io from 'socket.io-client';
@@ -64,11 +65,16 @@ export default function App() {
   const [selectedTarget, setSelectedTarget] = useState(null); // null=tutti | socketId
   const [chatInput, setChatInput] = useState('');
   const [isTalking, setIsTalking] = useState(false);
+  // { from, fromName, fromColor } quando qualcuno trasmette in PTT diretto a noi
+  const [incomingCall, setIncomingCall] = useState(null);
+  // { [socketId]: count } messaggi diretti non letti
+  const [unreadDMs, setUnreadDMs] = useState({});
 
   const socketRef = useRef(null);
   const mySocketIdRef = useRef(null);
   const myColorRef = useRef('#06b6d4');
-  const peersRef = useRef(new Map());       // socketId -> RTCPeerConnection
+  const peersRef = useRef(new Map());           // socketId -> RTCPeerConnection
+  const audioSendersRef = useRef(new Map());    // socketId -> RTCRtpSender (audio)
   const localStreamRef = useRef(null);
   const scrollRef = useRef(null);
   // keep selectedTarget accessible in callbacks without stale closure
@@ -108,7 +114,7 @@ export default function App() {
   const getLocalStream = async () => {
     if (localStreamRef.current) return localStreamRef.current;
     const stream = await mediaDevices.getUserMedia({ audio: true, video: false });
-    stream.getAudioTracks().forEach((t) => { t.enabled = false; });
+    // Non imposto enabled qui: il muting viene gestito per-peer con replaceTrack
     localStreamRef.current = stream;
     return stream;
   };
@@ -118,7 +124,15 @@ export default function App() {
 
     const pc = new RTCPeerConnection(ICE_CONFIG);
     const stream = await getLocalStream();
-    stream.getAudioTracks().forEach((t) => pc.addTrack(t, stream));
+    const audioTrack = stream.getAudioTracks()[0];
+
+    if (audioTrack) {
+      // addTrack include l'audio nel SDP; poi subito replaceTrack(null)
+      // così partiamo muti senza rinegoziazione
+      const sender = pc.addTrack(audioTrack, stream);
+      audioSendersRef.current.set(socketId, sender);
+      try { await sender.replaceTrack(null); } catch (_) {}
+    }
 
     pc.onicecandidate = (e) => {
       if (e.candidate && socketRef.current) {
@@ -148,14 +162,17 @@ export default function App() {
   const closePeer = (socketId) => {
     const pc = peersRef.current.get(socketId);
     if (pc) { try { pc.close(); } catch (_) {} peersRef.current.delete(socketId); }
+    audioSendersRef.current.delete(socketId);
     setUsers((prev) => prev.filter((u) => u.socketId !== socketId));
     if (selectedTargetRef.current === socketId) setSelectedTarget(null);
+    setIncomingCall((prev) => (prev?.from === socketId ? null : prev));
     refreshStatus();
   };
 
   const destroyAllPeers = () => {
     peersRef.current.forEach((pc) => { try { pc.close(); } catch (_) {} });
     peersRef.current.clear();
+    audioSendersRef.current.clear();
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach((t) => t.stop());
       localStreamRef.current = null;
@@ -253,6 +270,11 @@ export default function App() {
     });
 
     socket.on('direct-message', ({ from, username: uname, text, timestamp }) => {
+      Vibration.vibrate(120);
+      // Incrementa badge solo se non stiamo già guardando quel contatto
+      if (from !== selectedTargetRef.current) {
+        setUnreadDMs((prev) => ({ ...prev, [from]: (prev[from] || 0) + 1 }));
+      }
       addMessage({
         type: 'msg', from, fromName: uname, fromColor: colorForName(uname),
         to: socket.id, text, timestamp, isMine: false, isDirect: true,
@@ -260,16 +282,22 @@ export default function App() {
     });
 
     // ── Indicatori PTT ─────────────────────────────────────────
-    socket.on('talking-start', ({ from, to: talkingTo }) => {
+    socket.on('talking-start', ({ from, username: uname, to: talkingTo }) => {
       setUsers((prev) => prev.map((u) =>
         u.socketId === from ? { ...u, isTalking: true, talkingTo } : u
       ));
+      // Chiamata diretta a me
+      if (talkingTo === socket.id) {
+        Vibration.vibrate([0, 80, 60, 80]);
+        setIncomingCall({ from, fromName: uname, fromColor: colorForName(uname) });
+      }
     });
 
     socket.on('talking-stop', ({ from }) => {
       setUsers((prev) => prev.map((u) =>
         u.socketId === from ? { ...u, isTalking: false, talkingTo: null } : u
       ));
+      setIncomingCall((prev) => (prev?.from === from ? null : prev));
     });
 
     socketRef.current = socket;
@@ -314,18 +342,35 @@ export default function App() {
     setChatInput('');
   };
 
-  const startTalking = () => {
+  const startTalking = async () => {
     if (!joined || !localStreamRef.current) return;
-    localStreamRef.current.getAudioTracks().forEach((t) => { t.enabled = true; });
+    const audioTrack = localStreamRef.current.getAudioTracks()[0];
+    if (!audioTrack) return;
+
+    const target = selectedTargetRef.current;
     setIsTalking(true);
-    socketRef.current?.emit('talking-start', { to: selectedTargetRef.current });
+    socketRef.current?.emit('talking-start', { to: target });
+
+    // Invia audio solo al peer target (o a tutti se target=null)
+    for (const [socketId, sender] of audioSendersRef.current.entries()) {
+      try {
+        if (target === null || socketId === target) {
+          await sender.replaceTrack(audioTrack);
+        } else {
+          await sender.replaceTrack(null); // muto per gli altri
+        }
+      } catch (err) { console.error('replaceTrack start', socketId, err); }
+    }
   };
 
-  const stopTalking = () => {
-    if (!localStreamRef.current) return;
-    localStreamRef.current.getAudioTracks().forEach((t) => { t.enabled = false; });
+  const stopTalking = async () => {
     setIsTalking(false);
     socketRef.current?.emit('talking-stop', {});
+
+    // Muto tutti i sender
+    for (const sender of audioSendersRef.current.values()) {
+      try { await sender.replaceTrack(null); } catch (err) { console.error('replaceTrack stop', err); }
+    }
   };
 
   const cleanup = () => {
@@ -425,18 +470,40 @@ export default function App() {
               <TouchableOpacity
                 key={u.socketId}
                 style={[s.chip, selectedTarget === u.socketId && s.chipActive, { borderColor: u.color }]}
-                onPress={() => setSelectedTarget((t) => (t === u.socketId ? null : u.socketId))}
+                onPress={() => {
+                  const next = selectedTarget === u.socketId ? null : u.socketId;
+                  setSelectedTarget(next);
+                  if (next) setUnreadDMs((prev) => ({ ...prev, [next]: 0 }));
+                }}
               >
                 <View style={[s.chipDot, { backgroundColor: u.color }]} />
                 <Text style={[s.chipText, selectedTarget === u.socketId && s.chipTextActive]}>
                   {u.username}
                 </Text>
-                {/* pallino animato se sta parlando */}
                 {u.isTalking && <View style={s.talkingPulse} />}
+                {/* Badge messaggi non letti */}
+                {(unreadDMs[u.socketId] || 0) > 0 && (
+                  <View style={s.badge}>
+                    <Text style={s.badgeText}>{unreadDMs[u.socketId]}</Text>
+                  </View>
+                )}
               </TouchableOpacity>
             ))}
           </ScrollView>
         </View>
+
+        {/* ── Banner chiamata in arrivo ────────────────────────── */}
+        {incomingCall && (
+          <View style={[s.incomingBanner, { borderLeftColor: incomingCall.fromColor }]}>
+            <View style={[s.incomingAvatar, { backgroundColor: incomingCall.fromColor }]}>
+              <Text style={s.incomingAvatarText}>{initials(incomingCall.fromName)}</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={s.incomingTitle}>Chiamata in arrivo</Text>
+              <Text style={s.incomingName}>{incomingCall.fromName} sta parlando con te</Text>
+            </View>
+          </View>
+        )}
 
         {/* ── Feed messaggi ─────────────────────────────────────── */}
         <ScrollView ref={scrollRef} style={s.feed} contentContainerStyle={s.feedContent}>
@@ -675,4 +742,26 @@ const s = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   pttText: { color: '#fff', fontSize: 18, fontWeight: '800', letterSpacing: 1 },
+
+  // ── Badge DM non letti ────────────────────────────────────────
+  badge: {
+    minWidth: 18, height: 18, borderRadius: 9,
+    backgroundColor: '#ef4444', alignItems: 'center', justifyContent: 'center',
+    paddingHorizontal: 4, marginLeft: 2,
+  },
+  badgeText: { color: '#fff', fontSize: 10, fontWeight: '800' },
+
+  // ── Banner chiamata in arrivo ─────────────────────────────────
+  incomingBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    backgroundColor: '#0c2a1a', borderLeftWidth: 4,
+    paddingHorizontal: 14, paddingVertical: 10,
+  },
+  incomingAvatar: {
+    width: 36, height: 36, borderRadius: 18,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  incomingAvatarText: { color: '#fff', fontSize: 13, fontWeight: '800' },
+  incomingTitle: { color: '#4ade80', fontSize: 11, fontWeight: '700', marginBottom: 1 },
+  incomingName: { color: '#fff', fontSize: 13, fontWeight: '600' },
 });
