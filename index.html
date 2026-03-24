@@ -162,23 +162,20 @@
         /* Sync code chip */
         .code-chip { background: rgba(99,102,241,0.15); border: 1px solid rgba(99,102,241,0.3); color: #a5b4fc; padding: 4px 10px; border-radius: 20px; font-size: 0.7rem; font-family: monospace; }
 
+        /* Costi section */
+        .costi-row { display: flex; align-items: center; gap: 10px; }
+        .costi-label { min-width: 110px; font-size: 0.85rem; font-weight: 600; color: #e2e8f0; }
+        .costi-fields { display: flex; gap: 8px; flex: 1; }
+        .input-sm { padding: 8px 10px !important; font-size: 0.8rem !important; }
+        .costi-summary-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); font-size: 0.85rem; }
+        .costi-summary-row:last-child { border-bottom: none; }
+        .costi-total { display: flex; justify-content: space-between; padding: 12px 0 4px; font-weight: 700; font-size: 1rem; border-top: 2px solid rgba(139,92,246,0.4); margin-top: 8px; }
+
         /* Google login button */
         .btn-google { display: flex; align-items: center; justify-content: center; gap: 10px; background: white; color: #1f2937; border: none; padding: 14px 24px; border-radius: 14px; width: 100%; font-weight: 600; font-size: 0.95rem; cursor: pointer; transition: all 0.2s; font-family: 'Poppins', sans-serif; box-shadow: 0 4px 12px rgba(0,0,0,0.3); margin-top: 0.5rem; }
         .btn-google:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,0.4); }
         .user-avatar { width: 38px; height: 38px; border-radius: 50%; border: 2px solid rgba(139,92,246,0.4); }
 
-        /* Timer */
-        .timer-display { font-size: 4.5rem; font-weight: 700; text-align: center; font-variant-numeric: tabular-nums; letter-spacing: 2px; background: linear-gradient(135deg,#fff 0%,#a855f7 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; margin: 1.5rem 0; }
-        .timer-display.urgent { background: linear-gradient(135deg,#f87171,#ef4444); -webkit-background-clip: text; background-clip: text; }
-        .timer-btns { display: flex; gap: 10px; }
-        .btn-timer { flex: 1; padding: 16px; border-radius: 16px; border: none; font-weight: 700; font-size: 0.9rem; cursor: pointer; transition: all 0.2s; font-family: 'Poppins',sans-serif; }
-        .btn-timer.t-start { background: linear-gradient(135deg,#10b981,#059669); color: white; }
-        .btn-timer.t-stop { background: rgba(239,68,68,0.2); color: #f87171; border: 1px solid rgba(239,68,68,0.3); }
-        .btn-timer.t-reset { background: rgba(255,255,255,0.05); color: #94a3b8; border: 1px solid rgba(255,255,255,0.1); flex: 0 0 60px; }
-        .timer-presets { display: flex; gap: 8px; margin-bottom: 1rem; flex-wrap: wrap; }
-        .timer-preset-btn { background: rgba(139,92,246,0.12); border: 1px solid rgba(139,92,246,0.25); color: #c4b5fd; padding: 6px 14px; border-radius: 20px; font-size: 0.78rem; cursor: pointer; transition: all 0.2s; font-family: 'Poppins',sans-serif; }
-        .timer-preset-btn:hover { background: rgba(139,92,246,0.25); }
-        .timer-status { text-align: center; font-size: 0.8rem; color: #64748b; margin-top: 8px; min-height: 20px; }
 
         /* Temperature */
         .temp-result { text-align: center; padding: 24px; border-radius: 16px; margin-top: 1rem; animation: slideUp 0.3s ease-out; }
@@ -227,6 +224,16 @@
             <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
             Accedi con Google
         </button>
+        <div id="email-login-form" style="display:none; width:100%; margin-top:0.75rem;">
+            <input id="email-input" type="email" placeholder="Email" style="width:100%; padding:10px 14px; border-radius:10px; border:1px solid rgba(255,255,255,0.2); background:rgba(255,255,255,0.08); color:#fff; font-size:0.9rem; box-sizing:border-box; margin-bottom:8px; outline:none;" />
+            <input id="password-input" type="password" placeholder="Password" style="width:100%; padding:10px 14px; border-radius:10px; border:1px solid rgba(255,255,255,0.2); background:rgba(255,255,255,0.08); color:#fff; font-size:0.9rem; box-sizing:border-box; margin-bottom:8px; outline:none;" />
+            <p id="email-login-error" style="color:#f87171; font-size:0.8rem; margin:0 0 8px; display:none;"></p>
+            <p id="email-login-ok" style="color:#4ade80; font-size:0.8rem; margin:0 0 8px; display:none;"></p>
+            <button onclick="signInWithEmail()" style="width:100%; padding:11px; border-radius:10px; border:none; background:linear-gradient(135deg,#a855f7,#6366f1); color:#fff; font-weight:600; font-size:0.9rem; cursor:pointer;">Accedi</button>
+            <button onclick="resetEmailPassword()" style="background:none; border:none; color:rgba(255,255,255,0.4); font-size:0.75rem; cursor:pointer; margin-top:6px; padding:2px; width:100%;">Imposta / reimposta password</button>
+        </div>
+        <button onclick="toggleEmailForm()" style="background:none; border:none; color:rgba(255,255,255,0.5); font-size:0.8rem; cursor:pointer; margin-top:0.5rem; padding:4px;">Accedi con email</button>
+        <button onclick="enterDemoMode()" style="background:none; border:none; color:rgba(255,255,255,0.3); font-size:0.75rem; cursor:pointer; margin-top:0.25rem; padding:4px; text-decoration:underline;">Entra senza account (demo)</button>
         <p class="sync-hint">I tuoi dati restano sincronizzati su tutti i tuoi dispositivi</p>
     </div>
     <!-- Vista iOS PWA: guida ad aprire in Safari -->
@@ -393,30 +400,28 @@
         <div id="storico-list"></div>
     </div>
 
-    <!-- ═══════════ TIMER ═══════════ -->
-    <div id="section-timer" class="hidden">
-        <div class="section-header"><span class="section-title">⏱️ Timer Lievitazione</span></div>
+    <!-- ═══════════ COSTI ═══════════ -->
+    <div id="section-costi" class="hidden">
+        <div class="section-header"><span class="section-title">💰 Calorie &amp; Prezzi</span></div>
         <div class="tool-card">
-            <div class="tool-card-title">Preset rapidi</div>
-            <div class="timer-presets">
-                <button class="timer-preset-btn" onclick="setTimer(4,0)">4h</button>
-                <button class="timer-preset-btn" onclick="setTimer(6,0)">6h</button>
-                <button class="timer-preset-btn" onclick="setTimer(8,0)">8h</button>
-                <button class="timer-preset-btn" onclick="setTimer(12,0)">12h</button>
-                <button class="timer-preset-btn" onclick="setTimer(24,0)">24h</button>
-                <button class="timer-preset-btn" onclick="setTimer(48,0)">48h</button>
-            </div>
-            <div class="grid grid-cols-2 gap-3">
-                <div class="input-group"><label class="input-label">Ore</label><input type="number" id="timer-h" value="8" min="0" max="99" class="input-glass text-center text-xl font-bold"></div>
-                <div class="input-group"><label class="input-label">Minuti</label><input type="number" id="timer-m" value="0" min="0" max="59" class="input-glass text-center text-xl font-bold"></div>
+            <div class="tool-card-title">📊 Valori per ingrediente</div>
+            <p class="text-xs text-gray-400 mb-3">Inserisci kcal/100g e prezzo/kg di ogni ingrediente. I calcoli si aggiornano automaticamente.</p>
+            <div style="display:flex;flex-direction:column;gap:12px;" id="costi-inputs">
+                <div class="costi-row"><span class="costi-label">🌾 Solina</span><div class="costi-fields"><input type="number" id="cal-solina" placeholder="kcal/100g" class="input-glass input-sm" oninput="saveCosti()"><input type="number" id="prezzo-solina" placeholder="€/kg" step="0.01" class="input-glass input-sm" oninput="saveCosti()"></div></div>
+                <div class="costi-row"><span class="costi-label">🌾 Caputo</span><div class="costi-fields"><input type="number" id="cal-caputo" placeholder="kcal/100g" class="input-glass input-sm" oninput="saveCosti()"><input type="number" id="prezzo-caputo" placeholder="€/kg" step="0.01" class="input-glass input-sm" oninput="saveCosti()"></div></div>
+                <div class="costi-row"><span class="costi-label">🌿 Farro</span><div class="costi-fields"><input type="number" id="cal-farro" placeholder="kcal/100g" class="input-glass input-sm" oninput="saveCosti()"><input type="number" id="prezzo-farro" placeholder="€/kg" step="0.01" class="input-glass input-sm" oninput="saveCosti()"></div></div>
+                <div class="costi-row"><span class="costi-label">🍕 Farina Blu</span><div class="costi-fields"><input type="number" id="cal-farina-blu" placeholder="kcal/100g" class="input-glass input-sm" oninput="saveCosti()"><input type="number" id="prezzo-farina-blu" placeholder="€/kg" step="0.01" class="input-glass input-sm" oninput="saveCosti()"></div></div>
+                <div class="costi-row"><span class="costi-label">💧 Acqua</span><div class="costi-fields"><input type="number" id="cal-acqua" placeholder="kcal/100g" value="0" class="input-glass input-sm" oninput="saveCosti()"><input type="number" id="prezzo-acqua" placeholder="€/kg" value="0" step="0.01" class="input-glass input-sm" oninput="saveCosti()"></div></div>
+                <div class="costi-row"><span class="costi-label">🧂 Sale</span><div class="costi-fields"><input type="number" id="cal-sale" placeholder="kcal/100g" value="0" class="input-glass input-sm" oninput="saveCosti()"><input type="number" id="prezzo-sale" placeholder="€/kg" step="0.01" class="input-glass input-sm" oninput="saveCosti()"></div></div>
+                <div class="costi-row"><span class="costi-label">🍞 Lievito</span><div class="costi-fields"><input type="number" id="cal-lievito" placeholder="kcal/100g" class="input-glass input-sm" oninput="saveCosti()"><input type="number" id="prezzo-lievito" placeholder="€/kg" step="0.01" class="input-glass input-sm" oninput="saveCosti()"></div></div>
+                <div class="costi-row"><span class="costi-label">🍬 Zucchero</span><div class="costi-fields"><input type="number" id="cal-zucchero" placeholder="kcal/100g" class="input-glass input-sm" oninput="saveCosti()"><input type="number" id="prezzo-zucchero" placeholder="€/kg" step="0.01" class="input-glass input-sm" oninput="saveCosti()"></div></div>
+                <div class="costi-row"><span class="costi-label">🫒 Olio</span><div class="costi-fields"><input type="number" id="cal-olio" placeholder="kcal/100g" class="input-glass input-sm" oninput="saveCosti()"><input type="number" id="prezzo-olio" placeholder="€/kg" step="0.01" class="input-glass input-sm" oninput="saveCosti()"></div></div>
             </div>
         </div>
-        <div id="timer-display" class="timer-display">00:00:00</div>
-        <div id="timer-status" class="timer-status">Imposta le ore e premi Start</div>
-        <div class="timer-btns">
-            <button id="btn-timer-start" class="btn-timer t-start" onclick="timerStart()">▶ Start</button>
-            <button id="btn-timer-stop" class="btn-timer t-stop hidden" onclick="timerStop()">⏸ Pausa</button>
-            <button class="btn-timer t-reset" onclick="timerReset()">↺</button>
+        <div class="tool-card">
+            <div class="tool-card-title">🧮 Riepilogo ultimo impasto</div>
+            <p class="text-xs text-gray-400 mb-3">Calcola ricetta, poi torna qui per vedere costi e calorie.</p>
+            <div id="costi-riepilogo" style="color:#94a3b8; font-size:0.85rem;">Nessun calcolo effettuato ancora.</div>
         </div>
     </div>
 
@@ -455,7 +460,8 @@
 <nav class="bottom-nav">
     <div class="nav-item active" onclick="showSection('ricette',this)"><span class="nav-icon">🍕</span><span>Ricette</span></div>
     <div class="nav-item" onclick="showSection('storico',this)"><span class="nav-icon">📋</span><span>Storico</span></div>
-    <div class="nav-item" onclick="showSection('timer',this)"><span class="nav-icon">⏱️</span><span>Timer</span></div>
+
+    <div class="nav-item" onclick="showSection('costi',this)"><span class="nav-icon">💰</span><span>Costi</span></div>
     <div class="nav-item" onclick="showSection('strumenti',this)"><span class="nav-icon">🔧</span><span>Strumenti</span></div>
 </nav>
 
@@ -499,6 +505,45 @@ function showLoginCard() {
         document.getElementById('login-card-normal').style.display = 'block';
         document.getElementById('login-card-ios-pwa').style.display = 'none';
     }
+}
+
+function enterDemoMode() {
+    document.getElementById('sync-overlay').classList.add('hidden');
+    // Usa un utente fittizio per caricare l'app senza Firebase
+    initApp({ uid: 'demo', displayName: 'Demo', email: 'demo@pizzalab', photoURL: '' });
+}
+
+function toggleEmailForm() {
+    const form = document.getElementById('email-login-form');
+    form.style.display = form.style.display === 'none' ? 'block' : 'none';
+}
+
+function signInWithEmail() {
+    const email = document.getElementById('email-input').value.trim();
+    const password = document.getElementById('password-input').value;
+    const errEl = document.getElementById('email-login-error');
+    const okEl = document.getElementById('email-login-ok');
+    errEl.style.display = 'none'; okEl.style.display = 'none';
+    if (!email || !password) { errEl.textContent = 'Inserisci email e password'; errEl.style.display = 'block'; return; }
+    auth.signInWithEmailAndPassword(email, password).catch(err => {
+        errEl.textContent = err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential' ? 'Email o password errati' : err.message;
+        errEl.style.display = 'block';
+    });
+}
+
+function resetEmailPassword() {
+    const email = document.getElementById('email-input').value.trim();
+    const errEl = document.getElementById('email-login-error');
+    const okEl = document.getElementById('email-login-ok');
+    errEl.style.display = 'none'; okEl.style.display = 'none';
+    if (!email) { errEl.textContent = 'Inserisci prima la tua email'; errEl.style.display = 'block'; return; }
+    auth.sendPasswordResetEmail(email).then(() => {
+        okEl.textContent = 'Email inviata! Controlla la posta e imposta la password, poi torna qui ad accedere.';
+        okEl.style.display = 'block';
+    }).catch(err => {
+        errEl.textContent = err.message;
+        errEl.style.display = 'block';
+    });
 }
 
 function signInWithGoogle() {
@@ -566,6 +611,7 @@ function initApp(user) {
     });
     renderPresetBar('solina');
     calcTemp();
+    loadCosti();
 }
 
 function setSyncStatus(state) {
@@ -693,11 +739,12 @@ function renderAllPresets() {
 
 // ── Navigation ────────────────────────────────────────────────────────
 function showSection(name, btn) {
-    ['ricette','storico','timer','strumenti'].forEach(s => document.getElementById('section-'+s).classList.add('hidden'));
+    ['ricette','storico','costi','strumenti'].forEach(s => document.getElementById('section-'+s).classList.add('hidden'));
     document.getElementById('section-'+name).classList.remove('hidden');
     document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
     btn.classList.add('active');
     if (name==='storico') { renderChart(); renderStorico(); }
+    if (name==='costi') { calcCostiRiepilogo(); }
     if (name==='strumenti') { calcTemp(); renderAllPresets(); }
 }
 
@@ -740,6 +787,10 @@ function calculate(type) {
     let totalKg=0; for(let k in data){let v=data[k].val; if(data[k].unit==='g')v/=1000; totalKg+=v;}
     const targetKg=(targetCount*ballWeight)/1000, factor=targetKg/totalKg;
     currentCalc={type:typeName,palline:targetCount,ballWeight};
+    // Salva dati scalati per riepilogo costi
+    lastCalcData = {};
+    for(let k in data) { lastCalcData[k] = { val: +(data[k].val * factor).toFixed(3), unit: data[k].unit, icon: data[k].icon }; }
+    lastCalcBallWeight = ballWeight;
     const waterVal=data['Acqua']?data['Acqua'].val:0;
     let html='<div class="results-grid">';
     if(totalFlour>0&&waterVal>0){const hyd=((waterVal/totalFlour)*100).toFixed(1);html+=`<div class="result-card full-width hydration"><div class="res-icon">💧</div><div class="res-label" style="color:#38bdf8;">Idratazione</div><div class="res-value" style="color:#38bdf8;">${hyd}<span class="res-unit">%</span></div></div>`;}
@@ -1037,25 +1088,6 @@ function printRecipe() {
     window.print();
 }
 
-// ── Timer ─────────────────────────────────────────────────────────────
-let timerInterval=null, timerSeconds=0, timerRunning=false;
-function setTimer(h,m){document.getElementById('timer-h').value=h;document.getElementById('timer-m').value=m;}
-function timerStart(){
-    if(timerRunning)return;
-    if(!timerInterval){const h=parseInt(document.getElementById('timer-h').value)||0,m=parseInt(document.getElementById('timer-m').value)||0;timerSeconds=h*3600+m*60;if(timerSeconds<=0){alert('Imposta un tempo valido!');return;}}
-    timerRunning=true;
-    document.getElementById('btn-timer-start').classList.add('hidden');
-    document.getElementById('btn-timer-stop').classList.remove('hidden');
-    document.getElementById('timer-status').textContent='Timer in corso...';
-    if('Notification'in window&&Notification.permission==='default')Notification.requestPermission();
-    timerInterval=setInterval(()=>{
-        timerSeconds--;updateTimerDisplay();
-        if(timerSeconds<=0){clearInterval(timerInterval);timerInterval=null;timerRunning=false;document.getElementById('timer-status').textContent='✅ Lievitazione completata!';document.getElementById('btn-timer-stop').classList.add('hidden');document.getElementById('btn-timer-start').classList.remove('hidden');if('Notification'in window&&Notification.permission==='granted')new Notification('Pizza Lab Pro',{body:'🍕 Lievitazione completata! Impasto pronto.',icon:'./icon.svg'});}
-    },1000);
-}
-function timerStop(){clearInterval(timerInterval);timerInterval=null;timerRunning=false;document.getElementById('btn-timer-stop').classList.add('hidden');document.getElementById('btn-timer-start').classList.remove('hidden');document.getElementById('timer-status').textContent='In pausa';}
-function timerReset(){clearInterval(timerInterval);timerInterval=null;timerRunning=false;timerSeconds=0;document.getElementById('timer-display').textContent='00:00:00';document.getElementById('timer-display').classList.remove('urgent');document.getElementById('btn-timer-stop').classList.add('hidden');document.getElementById('btn-timer-start').classList.remove('hidden');document.getElementById('timer-status').textContent='Imposta le ore e premi Start';}
-function updateTimerDisplay(){const h=Math.floor(timerSeconds/3600),m=Math.floor((timerSeconds%3600)/60),s=timerSeconds%60,disp=document.getElementById('timer-display');disp.textContent=`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;disp.classList.toggle('urgent',timerSeconds<=60&&timerSeconds>0);}
 
 // ── Temperature ───────────────────────────────────────────────────────
 function calcTemp(){
@@ -1066,6 +1098,78 @@ function calcTemp(){
     else if(tw>35){cls='warm';icon='⚠️';note='Troppo alta: rischia di compromettere il lievito.';}
     else if(tw>25){cls='warm';icon='🌡️';note='Leggermente alta. Usa acqua più fresca.';}
     document.getElementById('temp-result').innerHTML=`<div class="temp-result ${cls}"><div class="temp-label">Temperatura acqua consigliata</div><div class="temp-big">${icon} ${tw.toFixed(1)}°C</div><div class="temp-note">${note}</div></div>`;
+}
+
+// ── Costi & Calorie ──────────────────────────────────────────────────
+const COSTI_KEYS = ['solina','caputo','farro','farina-blu','acqua','sale','lievito','zucchero','olio'];
+
+function saveCosti() {
+    const data = {};
+    COSTI_KEYS.forEach(k => {
+        data[k] = {
+            cal: parseFloat(document.getElementById('cal-'+k).value) || 0,
+            prezzo: parseFloat(document.getElementById('prezzo-'+k).value) || 0
+        };
+    });
+    localStorage.setItem('pizzalab_costi', JSON.stringify(data));
+}
+
+function loadCosti() {
+    try {
+        const data = JSON.parse(localStorage.getItem('pizzalab_costi'));
+        if (!data) return;
+        COSTI_KEYS.forEach(k => {
+            if (data[k]) {
+                if (data[k].cal) document.getElementById('cal-'+k).value = data[k].cal;
+                if (data[k].prezzo) document.getElementById('prezzo-'+k).value = data[k].prezzo;
+            }
+        });
+    } catch(e) {}
+}
+
+// Mappa nomi ingredienti dalle ricette ai COSTI_KEYS
+const INGREDIENTE_TO_KEY = {
+    'Solina':'solina', 'Caputo':'caputo', 'Farro':'farro', 'Farina Blu':'farina-blu',
+    'Acqua':'acqua', 'Sale':'sale', 'Lievito':'lievito', 'Zucchero':'zucchero', 'Olio':'olio'
+};
+
+let lastCalcData = null;
+let lastCalcBallWeight = 0;
+
+function calcCostiRiepilogo() {
+    const el = document.getElementById('costi-riepilogo');
+    if (!lastCalcData) { el.innerHTML = 'Nessun calcolo effettuato ancora.'; return; }
+    let costiData;
+    try { costiData = JSON.parse(localStorage.getItem('pizzalab_costi')) || {}; } catch(e) { costiData = {}; }
+
+    let totalKcal = 0, totalCosto = 0, totalGrams = 0;
+    let rows = '';
+
+    for (const [name, info] of Object.entries(lastCalcData)) {
+        const key = INGREDIENTE_TO_KEY[name];
+        const cd = key ? (costiData[key] || {}) : {};
+        const calPer100 = cd.cal || 0;
+        const pricePerKg = cd.prezzo || 0;
+
+        // Converti in grammi
+        let grams = info.unit === 'kg' ? info.val * 1000 : info.val;
+        totalGrams += grams;
+
+        const kcal = (calPer100 / 100) * grams;
+        const costo = (pricePerKg / 1000) * grams;
+        totalKcal += kcal;
+        totalCosto += costo;
+
+        rows += `<div class="costi-summary-row"><span>${info.icon} ${name} (${info.val}${info.unit})</span><span>${kcal.toFixed(0)} kcal — €${costo.toFixed(2)}</span></div>`;
+    }
+
+    const numBalls = lastCalcBallWeight > 0 ? Math.floor(totalGrams / lastCalcBallWeight) : 0;
+    const kcalPerBall = numBalls > 0 ? (totalKcal / numBalls).toFixed(0) : '-';
+    const costoPerBall = numBalls > 0 ? (totalCosto / numBalls).toFixed(2) : '-';
+
+    el.innerHTML = rows +
+        `<div class="costi-total"><span>Totale impasto</span><span>${totalKcal.toFixed(0)} kcal — €${totalCosto.toFixed(2)}</span></div>` +
+        (numBalls > 0 ? `<div class="costi-total" style="border-top:1px solid rgba(139,92,246,0.2);margin-top:4px;padding-top:8px;font-size:0.9rem;"><span>Per pallina (${lastCalcBallWeight}g × ${numBalls})</span><span>${kcalPerBall} kcal — €${costoPerBall}</span></div>` : '');
 }
 
 // ── Start ─────────────────────────────────────────────────────────────
