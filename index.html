@@ -52,7 +52,7 @@
             position: fixed; bottom: 0; left: 0; right: 0;
             background: rgba(10,15,30,0.97); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
             border-top: 1px solid rgba(255,255,255,0.08);
-            display: grid; grid-template-columns: repeat(4, 1fr);
+            display: grid; grid-template-columns: repeat(5, 1fr);
             padding-bottom: env(safe-area-inset-bottom); z-index: 100;
         }
         .nav-item { display: flex; flex-direction: column; align-items: center; padding: 10px 4px; cursor: pointer; transition: all 0.2s; font-size: 0.62rem; color: #475569; gap: 3px; }
@@ -200,6 +200,32 @@
 
         @keyframes slideUp { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
         .hidden { display: none !important; }
+
+        /* Frigo section */
+        .frigo-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px; }
+        .frigo-stat-card { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 14px 10px; text-align: center; }
+        .frigo-stat-card.highlight-frigo { background: rgba(56,189,248,0.1); border-color: rgba(56,189,248,0.3); }
+        .frigo-stat-card.highlight-fatto { background: rgba(16,185,129,0.1); border-color: rgba(16,185,129,0.3); }
+        .frigo-stat-val { font-size: 1.6rem; font-weight: 700; color: white; line-height: 1; }
+        .frigo-stat-label { font-size: 0.58rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 4px; }
+        .cassetto-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); border-radius: 14px; padding: 14px; margin-bottom: 10px; animation: slideUp 0.3s ease-out; }
+        .cassetto-header { display: flex; align-items: center; justify-content: space-between; }
+        .cassetto-left { display: flex; align-items: center; gap: 10px; }
+        .cassetto-icon { font-size: 1.5rem; }
+        .cassetto-nome { font-size: 0.9rem; font-weight: 600; }
+        .cassetto-meta { font-size: 0.7rem; color: #64748b; margin-top: 2px; }
+        .cassetto-right { display: flex; align-items: center; gap: 8px; }
+        .cassetto-palline { font-size: 1.1rem; font-weight: 700; }
+        .badge-stato { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 20px; font-size: 0.68rem; font-weight: 600; cursor: pointer; transition: all 0.2s; border: none; font-family: 'Poppins', sans-serif; }
+        .badge-fatto { background: rgba(16,185,129,0.15); color: #34d399; border: 1px solid rgba(16,185,129,0.3); }
+        .badge-frigo { background: rgba(56,189,248,0.15); color: #38bdf8; border: 1px solid rgba(56,189,248,0.3); }
+        .badge-fatto:hover { background: rgba(56,189,248,0.2); }
+        .badge-frigo:hover { background: rgba(16,185,129,0.2); }
+        .frigo-add-form { background: rgba(139,92,246,0.07); border: 1px solid rgba(139,92,246,0.2); border-radius: 16px; padding: 16px; margin-bottom: 16px; animation: slideUp 0.3s ease-out; }
+        .frigo-add-title { font-size: 0.8rem; color: #c4b5fd; margin-bottom: 12px; font-weight: 600; }
+        .frigo-type-tabs { display: grid; grid-template-columns: repeat(3,1fr); background: rgba(0,0,0,0.2); padding: 3px; border-radius: 12px; margin-bottom: 12px; gap: 2px; }
+        .frigo-ttab { text-align: center; padding: 8px 4px; border-radius: 10px; cursor: pointer; transition: all 0.3s; font-size: 0.78rem; color: #94a3b8; font-weight: 600; }
+        .frigo-ttab.active { background: rgba(255,255,255,0.1); color: white; }
 
         @media print {
             body { background: white !important; color: black !important; }
@@ -425,6 +451,61 @@
         </div>
     </div>
 
+    <!-- ═══════════ FRIGO ═══════════ -->
+    <div id="section-frigo" class="hidden">
+        <div class="section-header">
+            <span class="section-title">🧊 Frigo</span>
+            <button class="btn-outline" onclick="toggleFrigoForm()">＋ Aggiungi</button>
+        </div>
+
+        <!-- Form aggiunta cassetto -->
+        <div id="frigo-add-form" class="frigo-add-form hidden">
+            <div class="frigo-add-title">🧊 Nuovo cassetto / batch</div>
+            <div class="frigo-type-tabs">
+                <div class="frigo-ttab active" id="ftab-Solina" onclick="selectFrigoType('Solina',this)">🌾 Solina</div>
+                <div class="frigo-ttab" id="ftab-Farro" onclick="selectFrigoType('Farro',this)">🌿 Farro</div>
+                <div class="frigo-ttab" id="ftab-Romano" onclick="selectFrigoType('Romano',this)">🍕 Romano</div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div class="input-group">
+                    <label class="input-label">📝 Nome / etichetta</label>
+                    <input type="text" id="frigo-nome" placeholder="Es. Solina Lunedì" class="input-glass" style="font-size:0.9rem;">
+                </div>
+                <div class="input-group">
+                    <label class="input-label">🎯 Palline</label>
+                    <input type="number" id="frigo-palline" placeholder="0" min="1" class="input-glass text-center font-bold" style="font-size:0.9rem;">
+                </div>
+            </div>
+            <div class="input-group">
+                <label class="input-label">📅 Data</label>
+                <input type="date" id="frigo-data" class="input-glass" style="font-size:0.9rem;">
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                <button class="btn-outline" onclick="toggleFrigoForm()">Annulla</button>
+                <button class="btn-green" onclick="addCassetto()">Aggiungi</button>
+            </div>
+        </div>
+
+        <!-- Stats riepilogo -->
+        <div id="frigo-stats" class="frigo-stats">
+            <div class="frigo-stat-card">
+                <div class="frigo-stat-val" id="stat-totale">—</div>
+                <div class="frigo-stat-label">Totale</div>
+            </div>
+            <div class="frigo-stat-card highlight-fatto">
+                <div class="frigo-stat-val" id="stat-fatti">—</div>
+                <div class="frigo-stat-label">Fatti</div>
+            </div>
+            <div class="frigo-stat-card highlight-frigo">
+                <div class="frigo-stat-val" id="stat-infrigo">—</div>
+                <div class="frigo-stat-label">In Frigo</div>
+            </div>
+        </div>
+
+        <!-- Lista cassetti -->
+        <div id="frigo-list"></div>
+    </div>
+
     <!-- ═══════════ STRUMENTI ═══════════ -->
     <div id="section-strumenti" class="hidden">
         <div class="section-header"><span class="section-title">🔧 Strumenti</span></div>
@@ -460,7 +541,7 @@
 <nav class="bottom-nav">
     <div class="nav-item active" onclick="showSection('ricette',this)"><span class="nav-icon">🍕</span><span>Ricette</span></div>
     <div class="nav-item" onclick="showSection('storico',this)"><span class="nav-icon">📋</span><span>Storico</span></div>
-
+    <div class="nav-item" onclick="showSection('frigo',this)"><span class="nav-icon">🧊</span><span>Frigo</span></div>
     <div class="nav-item" onclick="showSection('costi',this)"><span class="nav-icon">💰</span><span>Costi</span></div>
     <div class="nav-item" onclick="showSection('strumenti',this)"><span class="nav-icon">🔧</span><span>Strumenti</span></div>
 </nav>
@@ -480,7 +561,7 @@ const db = firebase.firestore();
 const auth = firebase.auth();
 db.enablePersistence().catch(() => {});
 
-// ── PWA ───────────────────────────────────────────────────────────────
+// ── PWA ──────────────────────────────────────────────────────────────
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
 
 // ── State ─────────────────────────────────────────────────────────────
@@ -507,7 +588,7 @@ function showLoginCard() {
     }
 }
 
-function enterDemoMode() {
+function enterDemoMmoMode() {
     document.getElementById('sync-overlay').classList.add('hidden');
     // Usa un utente fittizio per caricare l'app senza Firebase
     initApp({ uid: 'demo', displayName: 'Demo', email: 'demo@pizzalab', photoURL: '' });
@@ -562,12 +643,14 @@ function signInWithGoogle() {
 function signOutUser() {
     if (!confirm('Vuoi uscire dall\'account?')) return;
     if (unsubHistory) { unsubHistory(); unsubHistory = null; }
+    if (unsubFrigo) { unsubFrigo(); unsubFrigo = null; }
     auth.signOut();
 }
 
 // ── Firestore refs ────────────────────────────────────────────────────
 function historyRef() { return db.collection('users').doc(getCurrentUID()).collection('history'); }
 function presetsRef() { return db.collection('users').doc(getCurrentUID()).collection('data').doc('presets'); }
+function frigoRef() { return db.collection('users').doc(getCurrentUID()).collection('frigo'); }
 
 // ── Migrazione dati dal vecchio codice segreto ───────────────────────
 async function migrateOldData(uid) {
@@ -607,6 +690,7 @@ function initApp(user) {
     setSyncStatus('loading');
     migrateOldData(user.uid).then(() => {
         startHistoryListener();
+        startFrigoListener();
         loadPresetsFromDB();
     });
     renderPresetBar('solina');
@@ -691,7 +775,7 @@ function getPresets() { return presetsCache; }
 const PRESET_FIELDS = {
     solina:  ['solina-kg','caputo-kg','acqua-kg','sale-g','lievito-g'],
     farro:   ['farro-kg','solina-farro-kg','caputo-farro-kg','acqua-farro-kg','sale-farro-g','lievito-farro-g'],
-    romano:  ['farina-blu-kg','acqua-romano-kg','sale-romano-g','zucchero-g','lievito-romano-g','olio-oliva-kg']
+    romano:  ['farina-blu-kg','acqua-romano-kg','sale-romano-g','succhero-g','lievito-romano-g','olio-oliva-kg']
 };
 
 function savePreset(type) {
@@ -737,13 +821,148 @@ function renderAllPresets() {
     ).join('');
 }
 
+// ── Frigo ─────────────────────────────────────────────────────────────
+let frigoCache = [];
+let frigoSelectedType = 'Solina';
+let unsubFrigo = null;
+
+const FRIGO_TYPE_ICONS = { Solina:'🌾', Farro:'🌿', Romano:'🍕' };
+
+function startFrigoListener() {
+    if (unsubFrigo) unsubFrigo();
+    unsubFrigo = frigoRef().orderBy('createdAt', 'desc').onSnapshot(snap => {
+        frigoCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        if (!document.getElementById('section-frigo').classList.contains('hidden')) {
+            renderFrigo();
+        }
+    }, err => console.warn('Frigo listener error:', err));
+}
+
+function selectFrigoType(type, btn) {
+    frigoSelectedType = type;
+    document.querySelectorAll('.frigo-ttab').forEach(t => t.classList.remove('active'));
+    btn.classList.add('active');
+}
+
+function toggleFrigoForm() {
+    const form = document.getElementById('frigo-add-form');
+    const isHidden = form.classList.contains('hidden');
+    form.classList.toggle('hidden');
+    if (isHidden) {
+        document.getElementById('frigo-data').value = todayStr();
+        document.getElementById('frigo-nome').value = '';
+        document.getElementById('frigo-palline').value = '';
+        frigoSelectedType = 'Solina';
+        document.querySelectorAll('.frigo-ttab').forEach(t => t.classList.remove('active'));
+        document.getElementById('ftab-Solina').classList.add('active');
+    }
+}
+
+async function addCassetto() {
+    const nome = document.getElementById('frigo-nome').value.trim();
+    const palline = parseInt(document.getElementById('frigo-palline').value) || 0;
+    const data = document.getElementById('frigo-data').value || todayStr();
+    if (!nome) { document.getElementById('frigo-nome').focus(); return; }
+    if (palline < 1) { document.getElementById('frigo-palline').focus(); return; }
+    const entry = {
+        nome,
+        tipo: frigoSelectedType,
+        palline,
+        stato: 'fatto',
+        data,
+        createdAt: new Date().toISOString()
+    };
+    try {
+        await frigoRef().add(entry);
+        toggleFrigoForm();
+    } catch(e) {
+        alert('Errore salvataggio: ' + e.message);
+    }
+}
+
+async function toggleStatoCassetto(id, statoAttuale) {
+    const nuovoStato = statoAttuale === 'fatto' ? 'in_frigo' : 'fatto';
+    try {
+        await frigoRef().doc(id).update({ stato: nuovoStato });
+    } catch(e) {
+        console.warn('Errore aggiornamento stato:', e);
+    }
+}
+
+async function deleteCassetto(id) {
+    if (!confirm('Eliminare questo cassetto?')) return;
+    try {
+        await frigoRef().doc(id).delete();
+    } catch(e) {
+        console.warn('Errore eliminazione:', e);
+    }
+}
+
+function renderFrigo() {
+    const totale = frigoCache.reduce((s, c) => s + (c.palline || 0), 0);
+    const fatti = frigoCache.filter(c => c.stato === 'fatto').reduce((s, c) => s + (c.palline || 0), 0);
+    const inFrigo = frigoCache.filter(c => c.stato === 'in_frigo').reduce((s, c) => s + (c.palline || 0), 0);
+    document.getElementById('stat-totale').textContent = totale || '0';
+    document.getElementById('stat-fatti').textContent = fatti || '0';
+    document.getElementById('stat-infrigo').textContent = inFrigo || '0';
+
+    const list = document.getElementById('frigo-list');
+    if (!frigoCache.length) {
+        list.innerHTML = `<div class="empty-state"><div class="empty-icon">🧊</div><p style="font-size:.9rem;">Nessun cassetto registrato.</p><p style="font-size:.78rem;margin-top:4px;">Premi "＋ Aggiungi" per inserirne uno.</p></div>`;
+        return;
+    }
+
+    // Raggruppa per data
+    const grouped = {};
+    frigoCache.forEach(c => {
+        const d = c.data || c.createdAt?.split('T')[0] || todayStr();
+        if (!grouped[d]) grouped[d] = [];
+        grouped[d].push(c);
+    });
+
+    const dates = Object.keys(grouped).sort().reverse();
+    let html = '';
+    dates.forEach(date => {
+        const items = grouped[date];
+        const totGiorno = items.reduce((s, i) => s + (i.palline || 0), 0);
+        html += `<div class="day-section"><div class="day-header"><span class="day-label">${fmtDate(date)}</span><span class="day-total">Tot: ${totGiorno} palline</span></div>`;
+        items.forEach(c => {
+            const isFatto = c.stato === 'fatto';
+            html += `<div class="cassetto-card">
+                <div class="cassetto-header">
+                    <div class="cassetto-left">
+                        <span class="cassetto-icon">${FRIGO_TYPE_ICONS[c.tipo] || '🍞'}</span>
+                        <div>
+                            <div class="cassetto-nome">${c.nome}</div>
+                            <div class="cassetto-meta">${c.tipo} · ${c.data || ''}</div>
+                        </div>
+                    </div>
+                    <div class="cassetto-right">
+                        <div>
+                            <div class="cassetto-palline">${c.palline}</div>
+                            <div style="font-size:0.65rem;color:#64748b;text-align:right;">palline</div>
+                        </div>
+                        <button class="badge-stato ${isFatto ? 'badge-fatto' : 'badge-frigo'}" onclick="toggleStatoCassetto('${c.id}','${c.stato}')" title="Tocca per cambiare stato">
+                            ${isFatto ? '✅ Fatto' : '🧊 In frigo'}
+                        </button>
+                        <button class="btn-del" onclick="deleteCassetto('${c.id}')">✕</button>
+                    </div>
+                </div>
+            </div>`;
+        });
+        html += '</div>';
+    });
+    list.innerHTML = html;
+}
+
 // ── Navigation ────────────────────────────────────────────────────────
 function showSection(name, btn) {
-    ['ricette','storico','costi','strumenti'].forEach(s => document.getElementById('section-'+s).classList.add('hidden'));
+    ['ricette','storico','frigo','costi','strumenti'].forEach(s => document.getElementById('section-'+s).classList.add('hidden'));
     document.getElementById('section-'+name).classList.remove('hidden');
     document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
     btn.classList.add('active');
     if (name==='storico') { renderChart(); renderStorico(); }
+    if (name==='frigo') { renderFrigo(); }
     if (name==='costi') { calcCostiRiepilogo(); }
     if (name==='strumenti') { calcTemp(); renderAllPresets(); }
 }
@@ -982,217 +1201,4 @@ function renderChart() {
         weeklyEl.style.display = ''; yearEl.style.display = 'none';
         consWeeklyEl.style.display = ''; consYearEl.style.display = 'none';
         const ref = new Date(); ref.setMonth(ref.getMonth() + chartOffset);
-        const year = ref.getFullYear(), month = ref.getMonth();
-        const daysInMonth = new Date(year, month + 1, 0).getDate();
-        const days = [];
-        for (let i = 1; i <= daysInMonth; i++) {
-            const d = new Date(year, month, i);
-            const ds = d.toISOString().split('T')[0];
-            days.push({ ...getDayData(h, ds), label: String(i) });
-        }
-        document.getElementById('chart-nav-title').textContent = `${MONTH_NAMES[month]} ${year}`;
-        renderBarChart(days, 'weekly-chart');
-        renderStats(days);
-        const consData = renderConsumptionBarChart(days, h, 'cons-weekly-chart');
-        renderConsumptionStats(consData);
-
-    } else if (chartMode === 'year') {
-        weeklyEl.style.display = 'none'; yearEl.style.display = '';
-        consWeeklyEl.style.display = 'none'; consYearEl.style.display = '';
-        const ref = new Date(); ref.setFullYear(ref.getFullYear() + chartOffset);
-        const year = ref.getFullYear();
-        document.getElementById('chart-nav-title').textContent = String(year);
-
-        // Produzione per mese
-        const months = [];
-        for (let m = 0; m < 12; m++) {
-            const dim = new Date(year, m + 1, 0).getDate();
-            let newSolina=0, newFarro=0, newNormale=0, frigoSolina=0, frigoFarro=0, frigoNormale=0;
-            for (let d = 1; d <= dim; d++) {
-                const ds = `${year}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-                const data = getDayData(h, ds);
-                newSolina += data.newSolina; newFarro += data.newFarro; newNormale += data.newNormale;
-                frigoSolina += data.frigoSolina; frigoFarro += data.frigoFarro; frigoNormale += data.frigoNormale;
-            }
-            const newP = newSolina+newFarro+newNormale, frigoP = frigoSolina+frigoFarro+frigoNormale;
-            months.push({ m, newSolina, newFarro, newNormale, frigoSolina, frigoFarro, frigoNormale, newP, frigoP, total: newP+frigoP, label: MONTH_NAMES[m].slice(0,3) });
-        }
-        const maxP = Math.max(...months.map(mo => mo.total), 1);
-        yearEl.innerHTML = `<div class="chart-bars" style="height:110px">${months.map(mo => {
-            const totalPct = Math.max((mo.total / maxP) * 100, mo.total ? 4 : 1);
-            const cnt = mo.total ? mo.total : '';
-            const isCur = mo.m === new Date().getMonth() && year === new Date().getFullYear();
-            const stack = makeStack([
-                { val: mo.newSolina,    color: CHART_COLORS.newSolina    },
-                { val: mo.newFarro,     color: CHART_COLORS.newFarro     },
-                { val: mo.newNormale,   color: CHART_COLORS.newNormale   },
-                { val: mo.frigoSolina,  color: CHART_COLORS.frigoSolina  },
-                { val: mo.frigoFarro,   color: CHART_COLORS.frigoFarro   },
-                { val: mo.frigoNormale, color: CHART_COLORS.frigoNormale },
-            ]);
-            return `<div class="chart-col${isCur ? ' is-today' : ''}" onclick="chartOffset=0;setChartMode('month',document.querySelectorAll('.chart-tab')[1]);const now=new Date();chartOffset=${mo.m}-now.getMonth()+(${year}-now.getFullYear())*12;renderChart()"><div class="chart-cnt" style="font-size:0.5rem">${cnt}</div><div class="chart-stack" style="height:${totalPct}%">${stack}</div><div class="chart-day${isCur ? ' is-today' : ''}">${mo.label}</div></div>`;
-        }).join('')}</div>`;
-
-        // Consumi per mese
-        const consMonths = [];
-        for (let m = 0; m < 12; m++) {
-            const dim = new Date(year, m + 1, 0).getDate();
-            let solina=0, farro=0, normale=0;
-            for (let d = 1; d <= dim; d++) {
-                const ds = `${year}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-                const c = getConsumptionData(h, ds);
-                solina += c.solina; farro += c.farro; normale += c.normale;
-            }
-            consMonths.push({ m, solina, farro, normale, total: solina+farro+normale, label: MONTH_NAMES[m].slice(0,3) });
-        }
-        const maxC = Math.max(...consMonths.map(mo => mo.total), 1);
-        consYearEl.innerHTML = `<div class="chart-bars" style="height:110px">${consMonths.map(mo => {
-            const totalPct = Math.max((mo.total / maxC) * 100, mo.total ? 4 : 1);
-            const cnt = mo.total ? mo.total : '';
-            const isCur = mo.m === new Date().getMonth() && year === new Date().getFullYear();
-            const stack = makeStack([
-                { val: mo.solina,  color: CHART_COLORS.newSolina  },
-                { val: mo.farro,   color: CHART_COLORS.newFarro   },
-                { val: mo.normale, color: CHART_COLORS.newNormale },
-            ]);
-            return `<div class="chart-col${isCur ? ' is-today' : ''}"><div class="chart-cnt" style="font-size:0.5rem">${cnt}</div><div class="chart-stack" style="height:${totalPct}%">${stack}</div><div class="chart-day${isCur ? ' is-today' : ''}">${mo.label}</div></div>`;
-        }).join('')}</div>`;
-
-        const allDays = [];
-        for (let m = 0; m < 12; m++) {
-            const dim = new Date(year, m+1, 0).getDate();
-            for (let d = 1; d <= dim; d++) {
-                const ds = `${year}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-                allDays.push(getDayData(h, ds));
-            }
-        }
-        renderStats(allDays);
-        renderConsumptionStats(consMonths);
-    }
-}
-
-// ── Export CSV ────────────────────────────────────────────────────────
-function exportCSV() {
-    const h=getHistory(); if(!h.length){alert('Nessun dato da esportare.');return;}
-    const rows=[['Data','Ora','Tipo','Palline','Peso pallina (g)','Palline frigo','Note']];
-    h.forEach(e=>rows.push([e.date,e.time,e.type,e.palline,e.ballWeight,e.cassetti||0,e.note||'']));
-    const csv=rows.map(r=>r.map(v=>`"${v}"`).join(',')).join('\n');
-    const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
-    const url=URL.createObjectURL(blob), a=document.createElement('a');
-    a.href=url; a.download='pizza-lab-storico.csv'; a.click(); URL.revokeObjectURL(url);
-}
-
-// ── Print ─────────────────────────────────────────────────────────────
-function printRecipe() {
-    if(document.getElementById('results-container').classList.contains('hidden')){alert('Calcola prima una ricetta!');return;}
-    window.print();
-}
-
-
-// ── Temperature ───────────────────────────────────────────────────────
-function calcTemp(){
-    const ta=parseFloat(document.getElementById('temp-ambiente').value)||20, tf=parseFloat(document.getElementById('temp-farina').value)||20, tw=72-ta-tf;
-    let cls='ok',icon='✅',note='Temperatura ideale per un impasto a 24°C.';
-    if(tw<4){cls='cold';icon='🧊';note='Usa acqua ghiacciata.';}
-    else if(tw<10){cls='cold';icon='❄️';note='Usa acqua fredda da frigo.';}
-    else if(tw>35){cls='warm';icon='⚠️';note='Troppo alta: rischia di compromettere il lievito.';}
-    else if(tw>25){cls='warm';icon='🌡️';note='Leggermente alta. Usa acqua più fresca.';}
-    document.getElementById('temp-result').innerHTML=`<div class="temp-result ${cls}"><div class="temp-label">Temperatura acqua consigliata</div><div class="temp-big">${icon} ${tw.toFixed(1)}°C</div><div class="temp-note">${note}</div></div>`;
-}
-
-// ── Costi & Calorie ──────────────────────────────────────────────────
-const COSTI_KEYS = ['solina','caputo','farro','farina-blu','acqua','sale','lievito','zucchero','olio'];
-
-function saveCosti() {
-    const data = {};
-    COSTI_KEYS.forEach(k => {
-        data[k] = {
-            cal: parseFloat(document.getElementById('cal-'+k).value) || 0,
-            prezzo: parseFloat(document.getElementById('prezzo-'+k).value) || 0
-        };
-    });
-    localStorage.setItem('pizzalab_costi', JSON.stringify(data));
-}
-
-function loadCosti() {
-    try {
-        const data = JSON.parse(localStorage.getItem('pizzalab_costi'));
-        if (!data) return;
-        COSTI_KEYS.forEach(k => {
-            if (data[k]) {
-                if (data[k].cal) document.getElementById('cal-'+k).value = data[k].cal;
-                if (data[k].prezzo) document.getElementById('prezzo-'+k).value = data[k].prezzo;
-            }
-        });
-    } catch(e) {}
-}
-
-// Mappa nomi ingredienti dalle ricette ai COSTI_KEYS
-const INGREDIENTE_TO_KEY = {
-    'Solina':'solina', 'Caputo':'caputo', 'Farro':'farro', 'Farina Blu':'farina-blu',
-    'Acqua':'acqua', 'Sale':'sale', 'Lievito':'lievito', 'Zucchero':'zucchero', 'Olio':'olio'
-};
-
-let lastCalcData = null;
-let lastCalcBallWeight = 0;
-
-function calcCostiRiepilogo() {
-    const el = document.getElementById('costi-riepilogo');
-    if (!lastCalcData) { el.innerHTML = 'Nessun calcolo effettuato ancora.'; return; }
-    let costiData;
-    try { costiData = JSON.parse(localStorage.getItem('pizzalab_costi')) || {}; } catch(e) { costiData = {}; }
-
-    let totalKcal = 0, totalCosto = 0, totalGrams = 0;
-    let rows = '';
-
-    for (const [name, info] of Object.entries(lastCalcData)) {
-        const key = INGREDIENTE_TO_KEY[name];
-        const cd = key ? (costiData[key] || {}) : {};
-        const calPer100 = cd.cal || 0;
-        const pricePerKg = cd.prezzo || 0;
-
-        // Converti in grammi
-        let grams = info.unit === 'kg' ? info.val * 1000 : info.val;
-        totalGrams += grams;
-
-        const kcal = (calPer100 / 100) * grams;
-        const costo = (pricePerKg / 1000) * grams;
-        totalKcal += kcal;
-        totalCosto += costo;
-
-        rows += `<div class="costi-summary-row"><span>${info.icon} ${name} (${info.val}${info.unit})</span><span>${kcal.toFixed(0)} kcal — €${costo.toFixed(2)}</span></div>`;
-    }
-
-    const numBalls = lastCalcBallWeight > 0 ? Math.floor(totalGrams / lastCalcBallWeight) : 0;
-    const kcalPerBall = numBalls > 0 ? (totalKcal / numBalls).toFixed(0) : '-';
-    const costoPerBall = numBalls > 0 ? (totalCosto / numBalls).toFixed(2) : '-';
-
-    el.innerHTML = rows +
-        `<div class="costi-total"><span>Totale impasto</span><span>${totalKcal.toFixed(0)} kcal — €${totalCosto.toFixed(2)}</span></div>` +
-        (numBalls > 0 ? `<div class="costi-total" style="border-top:1px solid rgba(139,92,246,0.2);margin-top:4px;padding-top:8px;font-size:0.9rem;"><span>Per pallina (${lastCalcBallWeight}g × ${numBalls})</span><span>${kcalPerBall} kcal — €${costoPerBall}</span></div>` : '');
-}
-
-// ── Start ─────────────────────────────────────────────────────────────
-auth.onAuthStateChanged(user => {
-    if (user) {
-        document.getElementById('sync-overlay').classList.add('hidden');
-        initApp(user);
-    } else {
-        if (unsubHistory) { unsubHistory(); unsubHistory = null; }
-        showLoginCard();
-        document.getElementById('sync-overlay').classList.remove('hidden');
-    }
-});
-// Gestisce il redirect da Google su mobile
-auth.getRedirectResult().then(result => {
-    if (result && result.user) {
-        // utente loggato tramite redirect - onAuthStateChanged gestisce il resto
-    }
-}).catch(err => {
-    if (err && err.code) {
-        alert('Errore login: ' + err.message);
-    }
-});
-</script>
-</body>
-</html>
+  
