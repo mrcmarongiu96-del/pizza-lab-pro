@@ -428,7 +428,7 @@
 
     <!-- ═══════════ COSTI ═══════════ -->
     <div id="section-costi" class="hidden">
-        <div class="section-header"><span class="section-title">💰 Calorie &amp; Prezzi</span></div>
+        <div class="section-header"><span class="section-title">💰 Calorie & Prezzi</span></div>
         <div class="tool-card">
             <div class="tool-card-title">📊 Valori per ingrediente</div>
             <p class="text-xs text-gray-400 mb-3">Inserisci kcal/100g e prezzo/kg di ogni ingrediente. I calcoli si aggiornano automaticamente.</p>
@@ -627,30 +627,17 @@ function resetEmailPassword() {
     });
 }
 
-function isMobile() {
-    return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || window.innerWidth < 800;
-}
-
 function signInWithGoogle() {
     const provider = new firebase.auth.GoogleAuthProvider();
-    if (isMobile()) {
-        // Su mobile usa sempre redirect — il popup non funziona
-        auth.signInWithRedirect(provider).catch(err => {
-            const btn = document.getElementById('btn-google-login');
-            if (btn) { btn.textContent = 'Accedi con Google'; btn.disabled = false; }
-            if (err.code) { alert('Errore login: ' + err.message); }
-        });
-    } else {
-        auth.signInWithPopup(provider).catch(err => {
-            const btn = document.getElementById('btn-google-login');
-            if (btn) { btn.textContent = 'Accedi con Google'; btn.disabled = false; }
-            if (err.code === 'auth/popup-blocked' || err.code === 'auth/popup-closed-by-user') {
-                auth.signInWithRedirect(provider);
-            } else if (err.code) {
-                alert('Errore login: ' + err.message);
-            }
-        });
-    }
+    // Popup funziona su tutti i dispositivi incluso iOS PWA standalone (16.4+)
+    // signInWithRedirect su iOS PWA blocca la navigazione e lascia il bottone stuck
+    auth.signInWithPopup(provider).catch(err => {
+        const btn = document.getElementById('btn-google-login');
+        if (btn) { btn.textContent = 'Accedi con Google'; btn.disabled = false; }
+        if (err.code && err.code !== 'auth/popup-closed-by-user' && err.code !== 'auth/cancelled-popup-request') {
+            alert('Errore login: ' + err.message);
+        }
+    });
 }
 
 function signOutUser() {
