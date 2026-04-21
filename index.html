@@ -629,8 +629,20 @@ function resetEmailPassword() {
 
 function signInWithGoogle() {
     const provider = new firebase.auth.GoogleAuthProvider();
-    // Popup funziona su tutti i dispositivi incluso iOS PWA standalone (16.4+)
-    // signInWithRedirect su iOS PWA blocca la navigazione e lascia il bottone stuck
+    // Su Android PWA standalone il popup si blocca (window.opener perso dopo il redirect OAuth).
+    // Quindi su Android+standalone usiamo signInWithRedirect; altrove (desktop, iOS, Chrome normale) teniamo il popup.
+    const ua = navigator.userAgent || '';
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+    const isIOS = /iPad|iPhone|iPod/.test(ua);
+    const isAndroid = /Android/i.test(ua);
+    if (isStandalone && isAndroid && !isIOS) {
+        auth.signInWithRedirect(provider).catch(err => {
+            const btn = document.getElementById('btn-google-login');
+            if (btn) { btn.textContent = 'Accedi con Google'; btn.disabled = false; }
+            alert('Errore login: ' + err.message);
+        });
+        return;
+    }
     auth.signInWithPopup(provider).catch(err => {
         const btn = document.getElementById('btn-google-login');
         if (btn) { btn.textContent = 'Accedi con Google'; btn.disabled = false; }
