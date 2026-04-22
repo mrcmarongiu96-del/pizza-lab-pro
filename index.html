@@ -629,26 +629,21 @@ function resetEmailPassword() {
 
 function signInWithGoogle() {
     const provider = new firebase.auth.GoogleAuthProvider();
-    // Su Android PWA standalone il popup si blocca (window.opener perso dopo il redirect OAuth).
-    // Quindi su Android+standalone usiamo signInWithRedirect; altrove (desktop, iOS, Chrome normale) teniamo il popup.
-    const ua = navigator.userAgent || '';
-    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
-    const isIOS = /iPad|iPhone|iPod/.test(ua);
-    const isAndroid = /Android/i.test(ua);
-    if (isStandalone && isAndroid && !isIOS) {
-        auth.signInWithRedirect(provider).catch(err => {
-            const btn = document.getElementById('btn-google-login');
-            if (btn) { btn.textContent = 'Accedi con Google'; btn.disabled = false; }
-            alert('Errore login: ' + err.message);
-        });
-        return;
-    }
-    auth.signInWithPopup(provider).catch(err => {
+    // Persistenza locale (IndexedDB): sopravvive a reload e al riavvio della PWA
+    auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(function(){});
+    auth.signInWithPopup(provider).catch(function(err){
         const btn = document.getElementById('btn-google-login');
         if (btn) { btn.textContent = 'Accedi con Google'; btn.disabled = false; }
-        if (err.code && err.code !== 'auth/popup-closed-by-user' && err.code !== 'auth/cancelled-popup-request') {
-            alert('Errore login: ' + err.message);
+        if (!err || !err.code) return;
+        // Utente ha chiuso o annullato volontariamente: silenzio
+        if (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request') return;
+        // Popup bloccato o ambiente senza popup (tipico PWA Android): fallback su redirect
+        const fallbackCodes = ['auth/popup-blocked','auth/operation-not-supported-in-this-environment','auth/web-storage-unsupported'];
+        if (fallbackCodes.indexOf(err.code) !== -1) {
+            auth.signInWithRedirect(provider).catch(function(e){ alert('Errore login (redirect): ' + e.message); });
+            return;
         }
+        alert('Errore login: ' + err.message);
     });
 }
 
