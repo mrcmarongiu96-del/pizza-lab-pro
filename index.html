@@ -235,7 +235,46 @@
             .res-label { color: #555 !important; }
             .res-value { color: #111 !important; }
         }
-    </style>
+    
+/* === FRIGO V2 === */
+.nf-wrap{padding:12px}
+.nf-summary{background:rgba(255,255,255,0.08);border-radius:12px;padding:16px;margin-bottom:16px}
+.nf-total{text-align:center;margin-bottom:12px}
+.nf-total-num{font-size:48px;font-weight:800;line-height:1}
+.nf-total-label{font-size:14px;opacity:0.8}
+.nf-breakdown{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;font-size:13px;text-align:center}
+.nf-breakdown>div{background:rgba(255,255,255,0.05);padding:8px 4px;border-radius:8px}
+.nf-empty{text-align:center;padding:40px 20px;opacity:0.7}
+.nf-batches{display:flex;flex-direction:column;gap:10px}
+.nf-batch-card{background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:12px}
+.nf-batch-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.nf-batch-type{font-weight:600;font-size:15px}
+.nf-batch-age{font-size:12px;opacity:0.7;margin-top:2px}
+.nf-batch-count{text-align:right}
+.nf-count-big{font-size:28px;font-weight:700}
+.nf-count-tot{font-size:14px;opacity:0.6}
+.nf-batch-ctrls{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.nf-batch-ctrls button{padding:8px 0;border:0;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer;background:rgba(255,255,255,0.1);color:inherit}
+.nf-btn-plus{background:#22c55e !important;color:#fff}
+.nf-btn-minus{background:#ef4444 !important;color:#fff}
+.nf-btn-all{background:#f59e0b !important;color:#fff}
+.nf-btn-expand{background:rgba(255,255,255,0.15) !important}
+.nf-balls{margin-top:10px;padding:10px;background:rgba(0,0,0,0.2);border-radius:8px;max-height:240px;overflow-y:auto}
+.nf-ball{display:flex;align-items:center;gap:8px;padding:4px 0;font-size:13px}
+.nf-ball.consumed{opacity:0.5}
+.nf-ball-date{flex:1}
+.nf-ball-consume{padding:2px 8px;border:0;border-radius:4px;background:#f59e0b;color:#fff;font-size:11px;cursor:pointer}
+.nf-tag{display:inline-block;font-size:10px;padding:2px 6px;background:rgba(255,255,255,0.15);border-radius:4px;margin-left:4px;vertical-align:middle}
+.nf-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px}
+.nf-actions button{padding:12px;border:0;border-radius:10px;font-weight:600;cursor:pointer;background:rgba(255,255,255,0.1);color:inherit}
+.nf-btn-add-manual{background:#3b82f6 !important;color:#fff}
+.nf-modal{position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:10000;display:flex;align-items:center;justify-content:center;padding:20px}
+.nf-modal-content{background:#1f2937;color:#fff;border-radius:12px;padding:20px;max-width:500px;width:100%;max-height:80vh;overflow:auto}
+.nf-modal-content button{padding:10px 16px;background:#3b82f6;color:#fff;border:0;border-radius:8px;cursor:pointer;font-weight:600}
+.nf-log-entry{padding:8px;margin:4px 0;background:rgba(255,255,255,0.05);border-radius:6px;font-size:13px}
+.nf-manual-field{display:block;margin:12px 0 4px;font-size:13px;opacity:0.85}
+.nf-manual-input{width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.2);background:rgba(0,0,0,0.3);color:inherit;font-size:14px;box-sizing:border-box}
+</style>
 </head>
 <body>
 
@@ -1422,6 +1461,343 @@ auth.getRedirectResult().then(result => {
         alert('Errore accesso: ' + err.message);
     }
 });
+
+/* ============================================================
+ * FRIGO V2 (batch + per-ball tracking, 2026-04)
+ * ============================================================ */
+(function(){
+    'use strict';
+    function nfBatchesRef(){
+        var u = firebase.auth().currentUser; if (!u) return null;
+        return firebase.firestore().collection('users').doc(u.uid).collection('batches');
+    }
+    function nfLogRef(){
+        var u = firebase.auth().currentUser; if (!u) return null;
+        return firebase.firestore().collection('users').doc(u.uid).collection('frigoLog');
+    }
+    var nfBatches = [];
+    var nfUnsub = null;
+    function nfUuid(){ return 'b'+Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
+    function nfDaysAgo(iso){
+        var n=new Date();n.setHours(0,0,0,0);
+        var t=new Date(iso);t.setHours(0,0,0,0);
+        return Math.max(0, Math.round((n-t)/86400000));
+    }
+    function nfAgeLabel(iso){
+        var d=nfDaysAgo(iso);
+        if(d===0) return 'Oggi';
+        if(d===1) return '1 giorno fa';
+        if(d===2) return '2 giorni fa';
+        return d+' giorni fa';
+    }
+    function nfAgeBucket(iso){var d=nfDaysAgo(iso);if(d===0)return '0';if(d===1)return '1';if(d===2)return '2';return '3+';}
+    function nfFmtDT(iso){
+        try{return new Date(iso).toLocaleString('it-IT',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});}
+        catch(e){return iso;}
+    }
+    function nfEsc(s){
+        return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});
+    }
+    function nfSubscribe(){
+        var ref = nfBatchesRef(); if (!ref) return;
+        if (nfUnsub) { try{nfUnsub();}catch(e){} nfUnsub=null; }
+        nfUnsub = ref.orderBy('createdAt','asc').onSnapshot(function(snap){
+            nfBatches = snap.docs.map(function(d){return d.data();});
+            nfRender();
+        }, function(err){ console.error('[FrigoV2] snap', err); });
+    }
+    function nfUnsubscribe(){
+        if (nfUnsub){try{nfUnsub();}catch(e){} nfUnsub=null;}
+        nfBatches = []; nfRender();
+    }
+    async function nfCreateBatchFromCalc(calc){
+        if (!calc) return;
+        var qty = parseInt(calc.palline,10)||0;
+        if (qty<=0) return;
+        var ref = nfBatchesRef(); if (!ref) return;
+        var now = new Date().toISOString();
+        var balls = [];
+        for (var i=0;i<qty;i++) balls.push({id:nfUuid(), createdAt:now, status:'in_frigo'});
+        var batch = { id:nfUuid(), createdAt:now, type:calc.type||'impasto', ballWeight:calc.ballWeight||0, note:calc.note||'', source:'calcolo', balls:balls };
+        try {
+            await ref.doc(batch.id).set(batch);
+            var lr = nfLogRef();
+            if (lr) await lr.add({ at:now, kind:'produzione', batchId:batch.id, qty:qty, ballIds:balls.map(function(b){return b.id;}) });
+        } catch(e){ console.error('[FrigoV2] createFromCalc', e); }
+    }
+    async function nfCreateManualBatch(type, qty, note){
+        var ref = nfBatchesRef(); if (!ref){alert('Non connesso');return;}
+        qty = parseInt(qty,10)||0;
+        if (qty<=0){alert('Quantità non valida');return;}
+        var now = new Date().toISOString();
+        var balls = [];
+        for (var i=0;i<qty;i++) balls.push({id:nfUuid(), createdAt:now, status:'in_frigo'});
+        var batch = { id:nfUuid(), createdAt:now, type:type||'manuale', ballWeight:0, note:note||'', source:'manuale', balls:balls };
+        try {
+            await ref.doc(batch.id).set(batch);
+            var lr = nfLogRef();
+            if (lr) await lr.add({ at:now, kind:'aggiunta_manuale', batchId:batch.id, qty:qty, ballIds:balls.map(function(b){return b.id;}), note:note||'' });
+        } catch(e){ console.error('[FrigoV2] createManual', e); alert('Errore: '+e.message); }
+    }
+    async function nfAddBall(batchId){
+        var ref = nfBatchesRef(); if (!ref) return;
+        try {
+            var doc = await ref.doc(batchId).get();
+            if (!doc.exists) return;
+            var batch = doc.data();
+            var now = new Date().toISOString();
+            var ball = { id:nfUuid(), createdAt:now, status:'in_frigo' };
+            batch.balls = (batch.balls||[]).concat([ball]);
+            await ref.doc(batchId).set(batch);
+            var lr = nfLogRef();
+            if (lr) await lr.add({ at:now, kind:'aggiunta_manuale', batchId:batchId, qty:1, ballIds:[ball.id] });
+        } catch(e){ console.error('[FrigoV2] addBall', e); }
+    }
+    async function nfRemoveBall(batchId){
+        var ref = nfBatchesRef(); if (!ref) return;
+        try {
+            var doc = await ref.doc(batchId).get();
+            if (!doc.exists) return;
+            var batch = doc.data();
+            var now = new Date().toISOString();
+            var target = (batch.balls||[]).find(function(b){return b.status==='in_frigo';});
+            if (!target) return;
+            target.status='consumata'; target.consumedAt=now;
+            await ref.doc(batchId).set(batch);
+            var lr = nfLogRef();
+            if (lr) await lr.add({ at:now, kind:'consumo', batchId:batchId, qty:1, ballIds:[target.id] });
+        } catch(e){ console.error('[FrigoV2] removeBall', e); }
+    }
+    async function nfConsumeBall(batchId, ballId){
+        var ref = nfBatchesRef(); if (!ref) return;
+        try {
+            var doc = await ref.doc(batchId).get();
+            if (!doc.exists) return;
+            var batch = doc.data();
+            var now = new Date().toISOString();
+            var target = (batch.balls||[]).find(function(b){return b.id===ballId;});
+            if (!target || target.status!=='in_frigo') return;
+            target.status='consumata'; target.consumedAt=now;
+            await ref.doc(batchId).set(batch);
+            var lr = nfLogRef();
+            if (lr) await lr.add({ at:now, kind:'consumo', batchId:batchId, qty:1, ballIds:[ballId] });
+        } catch(e){ console.error('[FrigoV2] consumeBall', e); }
+    }
+    async function nfConsumeAll(batchId){
+        if (!confirm('Segnare tutte le palline rimanenti come finite?')) return;
+        var ref = nfBatchesRef(); if (!ref) return;
+        try {
+            var doc = await ref.doc(batchId).get();
+            if (!doc.exists) return;
+            var batch = doc.data();
+            var now = new Date().toISOString();
+            var toC = (batch.balls||[]).filter(function(b){return b.status==='in_frigo';});
+            if (!toC.length) return;
+            toC.forEach(function(b){b.status='consumata';b.consumedAt=now;});
+            await ref.doc(batchId).set(batch);
+            var lr = nfLogRef();
+            if (lr) await lr.add({ at:now, kind:'consumo', batchId:batchId, qty:toC.length, ballIds:toC.map(function(b){return b.id;}) });
+        } catch(e){ console.error('[FrigoV2] consumeAll', e); }
+    }
+    async function nfDeleteBatch(batchId){
+        if (!confirm('Eliminare definitivamente questo batch?')) return;
+        var ref = nfBatchesRef(); if (!ref) return;
+        try {
+            var doc = await ref.doc(batchId).get();
+            if (doc.exists) {
+                var lr = nfLogRef();
+                if (lr) {
+                    var batch = doc.data();
+                    var inF = (batch.balls||[]).filter(function(b){return b.status==='in_frigo';});
+                    await lr.add({ at:new Date().toISOString(), kind:'rimozione_manuale', batchId:batchId, qty:inF.length, ballIds:inF.map(function(b){return b.id;}), note:'batch eliminato' });
+                }
+            }
+            await ref.doc(batchId).delete();
+        } catch(e){ console.error('[FrigoV2] delete', e); }
+    }
+    function nfToggleExpand(batchId){
+        var el = document.getElementById('nf-balls-'+batchId);
+        if (!el) return;
+        el.style.display = (el.style.display==='none'||!el.style.display) ? 'block' : 'none';
+    }
+    function nfComputeTotals(){
+        var total=0, byAge={'0':0,'1':0,'2':0,'3+':0};
+        for (var i=0;i<nfBatches.length;i++){
+            var bs = nfBatches[i].balls||[];
+            for (var j=0;j<bs.length;j++){
+                if (bs[j].status==='in_frigo'){ total++; byAge[nfAgeBucket(bs[j].createdAt)]++; }
+            }
+        }
+        return {total:total, byAge:byAge};
+    }
+    function nfRender(){
+        var container = document.getElementById('nf-frigo-container');
+        if (!container) return;
+        var tot = nfComputeTotals();
+        var total = tot.total, byAge = tot.byAge;
+        var visible = nfBatches.slice().sort(function(a,b){return new Date(a.createdAt)-new Date(b.createdAt);})
+            .filter(function(b){return (b.balls||[]).some(function(x){return x.status==='in_frigo';});});
+        var html = '<div class="nf-wrap">';
+        html += '<div class="nf-summary">';
+        html += '<div class="nf-total"><div class="nf-total-num">'+total+'</div><div class="nf-total-label">palline nel frigo</div></div>';
+        html += '<div class="nf-breakdown">';
+        html += '<div><b>Oggi</b><br>'+byAge['0']+'</div>';
+        html += '<div><b>1 gg</b><br>'+byAge['1']+'</div>';
+        html += '<div><b>2 gg</b><br>'+byAge['2']+'</div>';
+        html += '<div><b>3+ gg</b><br>'+byAge['3+']+'</div>';
+        html += '</div></div>';
+        if (!visible.length){
+            html += '<div class="nf-empty">Frigo vuoto.<br>Salva un calcolo o aggiungi un batch manuale.</div>';
+        } else {
+            html += '<div class="nf-batches">';
+            for (var i=0;i<visible.length;i++){
+                var b = visible[i];
+                var arr = b.balls||[];
+                var inF = arr.filter(function(x){return x.status==='in_frigo';}).length;
+                var totB = arr.length;
+                var age = nfAgeLabel(b.createdAt);
+                var isToday = nfDaysAgo(b.createdAt)===0;
+                var icon = isToday ? '🆕' : '🧊';
+                var srcTag = b.source==='manuale' ? '<span class="nf-tag">manuale</span>' : '';
+                var bid = nfEsc(b.id);
+                html += '<div class="nf-batch-card" data-batch="'+bid+'">';
+                html += '<div class="nf-batch-head">';
+                html += '<div><div class="nf-batch-type">'+icon+' '+nfEsc(b.type)+' '+srcTag+'</div>';
+                html += '<div class="nf-batch-age">'+age+' · '+nfFmtDT(b.createdAt)+'</div></div>';
+                html += '<div class="nf-batch-count"><span class="nf-count-big">'+inF+'</span><span class="nf-count-tot">/'+totB+'</span></div>';
+                html += '</div>';
+                html += '<div class="nf-batch-ctrls">';
+                html += '<button class="nf-btn-minus" onclick="nfRemoveBall(\''+bid+'\')">− 1</button>';
+                html += '<button class="nf-btn-plus"  onclick="nfAddBall(\''+bid+'\')">+ 1</button>';
+                html += '<button class="nf-btn-all"   onclick="nfConsumeAll(\''+bid+'\')">Finita</button>';
+                html += '<button class="nf-btn-expand" onclick="nfToggleExpand(\''+bid+'\')">Dettagli</button>';
+                html += '</div>';
+                html += '<div class="nf-balls" id="nf-balls-'+bid+'" style="display:none">';
+                for (var k=0;k<arr.length;k++){
+                    var ball = arr[k];
+                    var cls = ball.status==='consumata' ? 'nf-ball consumed' : 'nf-ball';
+                    var ico = ball.status==='consumata' ? '✅' : '🟢';
+                    html += '<div class="'+cls+'"><span>'+ico+'</span>';
+                    html += '<span class="nf-ball-date">'+nfFmtDT(ball.createdAt)+'</span>';
+                    if (ball.status==='in_frigo'){
+                        html += '<button class="nf-ball-consume" onclick="nfConsumeBall(\''+bid+'\',\''+nfEsc(ball.id)+'\')">Finita</button>';
+                    }
+                    html += '</div>';
+                }
+                html += '<div style="margin-top:10px;text-align:right"><button class="nf-ball-consume" style="background:#ef4444" onclick="nfDeleteBatch(\''+bid+'\')">Elimina batch</button></div>';
+                html += '</div></div>';
+            }
+            html += '</div>';
+        }
+        html += '<div class="nf-actions">';
+        html += '<button class="nf-btn-add-manual" onclick="nfOpenManualDialog()">+ Batch manuale</button>';
+        html += '<button onclick="nfOpenLog()">Log correzioni</button>';
+        html += '</div>';
+        html += '</div>';
+        container.innerHTML = html;
+    }
+    function nfOpenManualDialog(){
+        var modal = document.createElement('div');
+        modal.className='nf-modal'; modal.id='nf-modal-manual';
+        modal.innerHTML = '<div class="nf-modal-content">' +
+            '<h3 style="margin:0 0 12px 0">Aggiungi batch manuale</h3>' +
+            '<label class="nf-manual-field">Tipo impasto</label>' +
+            '<input class="nf-manual-input" id="nf-man-type" placeholder="es: Solina, Farro, Romano">' +
+            '<label class="nf-manual-field">Quantità palline</label>' +
+            '<input class="nf-manual-input" id="nf-man-qty" type="number" inputmode="numeric" min="1" value="1">' +
+            '<label class="nf-manual-field">Nota (opzionale)</label>' +
+            '<input class="nf-manual-input" id="nf-man-note" placeholder="">' +
+            '<div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end">' +
+            '<button style="background:rgba(255,255,255,0.15)" onclick="nfCloseModal(\'nf-modal-manual\')">Annulla</button>' +
+            '<button onclick="nfSubmitManual()">Aggiungi</button>' +
+            '</div></div>';
+        document.body.appendChild(modal);
+        setTimeout(function(){var f=document.getElementById('nf-man-type');if(f)f.focus();},50);
+    }
+    async function nfSubmitManual(){
+        var t = (document.getElementById('nf-man-type').value||'').trim();
+        var q = parseInt(document.getElementById('nf-man-qty').value,10);
+        var n = (document.getElementById('nf-man-note').value||'').trim();
+        if (!t){alert('Inserisci il tipo impasto');return;}
+        if (!q||q<=0){alert('Quantità non valida');return;}
+        nfCloseModal('nf-modal-manual');
+        await nfCreateManualBatch(t, q, n);
+    }
+    function nfCloseModal(id){var m=document.getElementById(id); if(m) m.remove();}
+    async function nfOpenLog(){
+        var lr = nfLogRef(); if (!lr) return;
+        var entries = [];
+        try {
+            var snap = await lr.orderBy('at','desc').limit(50).get();
+            entries = snap.docs.map(function(d){return d.data();});
+        } catch(e){ alert('Errore lettura log: '+e.message); return; }
+        var LABELS = { produzione:'🔵 Produzione', consumo:'🟠 Consumo', aggiunta_manuale:'🟢 Aggiunta', rimozione_manuale:'🔴 Rimozione', correzione:'⚙ Correzione' };
+        var html = '<h3 style="margin:0 0 12px 0">Log correzioni (ultimi 50)</h3>';
+        if (!entries.length){
+            html += '<div style="opacity:0.7">Nessuna movimentazione ancora.</div>';
+        } else {
+            html += '<div style="max-height:55vh;overflow:auto">';
+            for (var i=0;i<entries.length;i++){
+                var e = entries[i];
+                var label = LABELS[e.kind] || e.kind;
+                html += '<div class="nf-log-entry">'+label+' · <b>'+(e.qty||0)+'</b> palline · '+nfFmtDT(e.at)+(e.note?' · '+nfEsc(e.note):'')+'</div>';
+            }
+            html += '</div>';
+        }
+        html += '<div style="text-align:right;margin-top:10px"><button onclick="nfCloseModal(\'nf-modal-log\')">Chiudi</button></div>';
+        var modal = document.createElement('div');
+        modal.className='nf-modal'; modal.id='nf-modal-log';
+        modal.innerHTML = '<div class="nf-modal-content">'+html+'</div>';
+        document.body.appendChild(modal);
+    }
+    function nfMount(){
+        var section = document.getElementById('section-frigo');
+        if (!section){ setTimeout(nfMount, 500); return; }
+        var header = section.querySelector('.section-header');
+        section.innerHTML = '';
+        if (header) section.appendChild(header);
+        var c = document.createElement('div');
+        c.id = 'nf-frigo-container';
+        section.appendChild(c);
+        nfRender();
+    }
+    function nfHookSave(){
+        if (typeof window.confirmSave !== 'function' || window.__nfSaveHooked) return;
+        window.__nfSaveHooked = true;
+        var orig = window.confirmSave;
+        window.confirmSave = async function(){
+            var snap = window.currentCalc ? {
+                palline: window.currentCalc.palline,
+                type: window.currentCalc.type,
+                ballWeight: window.currentCalc.ballWeight,
+                note: (document.getElementById('save-note') ? document.getElementById('save-note').value : '')
+            } : null;
+            var res = await orig.apply(this, arguments);
+            if (snap && snap.palline) await nfCreateBatchFromCalc(snap);
+            return res;
+        };
+    }
+    function nfInit(){
+        if (typeof firebase === 'undefined' || !firebase.auth){ setTimeout(nfInit, 300); return; }
+        nfMount();
+        nfHookSave();
+        firebase.auth().onAuthStateChanged(function(u){
+            if (u) nfSubscribe(); else nfUnsubscribe();
+        });
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', nfInit);
+    else nfInit();
+    window.nfAddBall = nfAddBall;
+    window.nfRemoveBall = nfRemoveBall;
+    window.nfConsumeBall = nfConsumeBall;
+    window.nfConsumeAll = nfConsumeAll;
+    window.nfDeleteBatch = nfDeleteBatch;
+    window.nfToggleExpand = nfToggleExpand;
+    window.nfOpenManualDialog = nfOpenManualDialog;
+    window.nfOpenLog = nfOpenLog;
+    window.nfSubmitManual = nfSubmitManual;
+    window.nfCloseModal = nfCloseModal;
+})();
 </script>
 </body>
 </html>
