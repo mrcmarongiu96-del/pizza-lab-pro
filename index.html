@@ -1795,7 +1795,7 @@ auth.getRedirectResult().then(result => {
     function nfCountInFrigoByType(type){
         var n = nfNormType(type);
         var count = 0;
-        batches.forEach(function(b){
+        nfBatches.forEach(function(b){
             if (nfNormType(b.type) !== n) return;
             (b.balls || []).forEach(function(ball){
                 if (ball.status === 'in_frigo') count++;
@@ -1807,7 +1807,7 @@ auth.getRedirectResult().then(result => {
     async function nfConsumeOldestByType(type, qty, note){
         var n = nfNormType(type);
         var remaining = qty;
-        var sorted = batches.slice().sort(function(a,b){ return (a.createdAt||'').localeCompare(b.createdAt||''); });
+        var sorted = nfBatches.slice().sort(function(a,b){ return (a.createdAt||'').localeCompare(b.createdAt||''); });
         for (var i = 0; i < sorted.length && remaining > 0; i++) {
             var b = sorted[i];
             if (nfNormType(b.type) !== n) continue;
