@@ -93,6 +93,26 @@
         .res-unit { font-size: 0.85rem; color: #64748b; font-weight: 400; }
         .res-icon { font-size: 1.4rem; margin-bottom: 6px; }
 
+        /* Checklist impasto */
+        .check-progress { grid-column: span 2; display: flex; align-items: center; gap: 12px; background: rgba(139,92,246,0.08); border: 1px solid rgba(139,92,246,0.25); border-radius: 16px; padding: 12px 14px; transition: all 0.3s; }
+        .check-progress-main { flex: 1; min-width: 0; }
+        .check-progress-txt { font-size: 0.78rem; color: #c4b5fd; font-weight: 600; margin-bottom: 6px; }
+        .check-progress-hint { font-size: 0.65rem; color: #64748b; margin-top: 6px; }
+        .check-progress-bar { height: 6px; background: rgba(255,255,255,0.08); border-radius: 3px; overflow: hidden; }
+        .check-progress-fill { height: 100%; width: 0; background: linear-gradient(90deg,#6366f1,#a855f7); border-radius: 3px; transition: width 0.3s ease; }
+        .check-progress.done { background: rgba(16,185,129,0.12); border-color: rgba(16,185,129,0.4); }
+        .check-progress.done .check-progress-txt { color: #6ee7b7; }
+        .check-progress.done .check-progress-fill { background: #10b981; }
+        .check-reset { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #94a3b8; font-size: 0.7rem; padding: 8px 10px; border-radius: 10px; cursor: pointer; font-family: 'Poppins',sans-serif; white-space: nowrap; }
+        .check-reset:hover { color: white; background: rgba(255,255,255,0.1); }
+        .result-card.checkable { cursor: pointer; position: relative; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; transition: all 0.2s; }
+        .result-card.checkable:active { transform: scale(0.96); }
+        .check-box { position: absolute; top: 10px; right: 10px; width: 22px; height: 22px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.18); display: flex; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: 700; color: transparent; transition: all 0.2s; }
+        .result-card.checked { background: rgba(16,185,129,0.12); border-color: rgba(16,185,129,0.45); }
+        .result-card.checked .check-box { background: #10b981; border-color: #10b981; color: white; }
+        .result-card.checked .res-icon, .result-card.checked .res-label { opacity: 0.5; }
+        .result-card.checked .res-value { color: #6ee7b7; }
+
         /* Save Panel */
         .save-panel { background: rgba(16,185,129,0.07); border: 1px solid rgba(16,185,129,0.2); border-radius: 16px; padding: 16px; margin-top: 12px; animation: slideUp 0.3s ease-out; }
         .save-panel-title { font-size: 0.8rem; color: #6ee7b7; margin-bottom: 10px; font-weight: 600; }
@@ -234,6 +254,9 @@
             .result-card { background: #f8f8f8 !important; border: 1px solid #ddd !important; break-inside: avoid; }
             .res-label { color: #555 !important; }
             .res-value { color: #111 !important; }
+            .check-progress, .check-box { display: none !important; }
+            .result-card.checked { background: #f8f8f8 !important; border-color: #ddd !important; }
+            .result-card.checked .res-icon, .result-card.checked .res-label { opacity: 1 !important; }
         }
     
 /* === FRIGO V2 === */
@@ -1068,13 +1091,17 @@ function calculate(type) {
     lastCalcData = {};
     for(let k in data) { lastCalcData[k] = { val: +(data[k].val * factor).toFixed(3), unit: data[k].unit, icon: data[k].icon }; }
     lastCalcBallWeight = ballWeight;
+    checkSig = typeName+'|'+targetCount+'|'+Object.keys(lastCalcData).map(k=>k+'='+lastCalcData[k].val).join(',');
     const waterVal=data['Acqua']?data['Acqua'].val:0;
     let html='<div class="results-grid">';
     if(totalFlour>0&&waterVal>0){const hyd=((waterVal/totalFlour)*100).toFixed(1);html+=`<div class="result-card full-width hydration"><div class="res-icon">💧</div><div class="res-label" style="color:#38bdf8;">Idratazione</div><div class="res-value" style="color:#38bdf8;">${hyd}<span class="res-unit">%</span></div></div>`;}
-    for(let k in data){const scaled=data[k].val*factor, dv=data[k].unit==='kg'?scaled.toFixed(2):Math.round(scaled);html+=`<div class="result-card"><div class="res-icon">${data[k].icon}</div><div class="res-label">${k}</div><div class="res-value">${dv} <span class="res-unit">${data[k].unit}</span></div></div>`;}
+    const nIng=Object.keys(data).length;
+    html+=`<div class="check-progress no-print" id="check-progress"><div class="check-progress-main"><div class="check-progress-txt" id="check-progress-txt">Checklist impasto · 0/${nIng} inseriti</div><div class="check-progress-bar"><div class="check-progress-fill" id="check-progress-fill"></div></div><div class="check-progress-hint">Tocca un ingrediente quando l'hai pesato e messo nell'impasto.</div></div><button class="check-reset" onclick="resetChecklist()">↺ Reset</button></div>`;
+    for(let k in data){const scaled=data[k].val*factor, dv=data[k].unit==='kg'?scaled.toFixed(2):Math.round(scaled);html+=`<div class="result-card checkable" data-ing="${k}" onclick="toggleIngrediente(this)"><div class="check-box">✓</div><div class="res-icon">${data[k].icon}</div><div class="res-label">${k}</div><div class="res-value">${dv} <span class="res-unit">${data[k].unit}</span></div></div>`;}
     html+=`<div class="result-card full-width highlight"><div class="res-label" style="color:#a7f3d0;">Peso Totale Impasto</div><div class="res-value" style="color:#34d399;font-size:1.4rem;">${Math.round(targetKg*1000)} <span class="res-unit">g</span></div></div></div>`;
     const container=document.getElementById('results-container');
     container.innerHTML=html; container.classList.remove('hidden');
+    restoreChecklist();
     const panel=document.getElementById('save-panel');
     panel.classList.remove('hidden');
     document.getElementById('save-date').value=todayStr();
@@ -1083,6 +1110,45 @@ function calculate(type) {
     document.getElementById('btn-save').textContent='Salva Impasto';
     document.getElementById('btn-save').disabled=false;
     setTimeout(()=>container.scrollIntoView({behavior:'smooth',block:'start'}),100);
+}
+
+// ── Checklist impasto ─────────────────────────────────────────────────
+// Ogni ingrediente calcolato si può spuntare al tocco; lo stato è salvato in
+// localStorage legato alla ricetta (tipo + palline + dosi) così sopravvive a
+// un reload del telefono durante l'impasto.
+const CHECK_KEY = 'pizzalab_checklist';
+let checkSig = '';
+function checkCards() { return [...document.querySelectorAll('#results-container .result-card.checkable')]; }
+function toggleIngrediente(card) {
+    card.classList.toggle('checked');
+    if (navigator.vibrate) { try { navigator.vibrate(card.classList.contains('checked') ? 30 : 12); } catch(e) {} }
+    updateChecklist();
+}
+function resetChecklist() {
+    checkCards().forEach(c => c.classList.remove('checked'));
+    updateChecklist();
+}
+function updateChecklist() {
+    const prog = document.getElementById('check-progress'); if (!prog) return;
+    const cards = checkCards(), done = cards.filter(c => c.classList.contains('checked'));
+    const n = cards.length, d = done.length;
+    document.getElementById('check-progress-fill').style.width = (n ? (d / n) * 100 : 0) + '%';
+    const txt = document.getElementById('check-progress-txt');
+    if (n > 0 && d === n) { prog.classList.add('done'); txt.textContent = `✅ Tutti gli ingredienti inseriti (${n}/${n})`; }
+    else { prog.classList.remove('done'); txt.textContent = `Checklist impasto · ${d}/${n} inseriti`; }
+    try { localStorage.setItem(CHECK_KEY, JSON.stringify({ sig: checkSig, checked: done.map(c => c.dataset.ing) })); } catch(e) {}
+}
+function restoreChecklist() {
+    try {
+        const saved = JSON.parse(localStorage.getItem(CHECK_KEY));
+        if (saved && saved.sig === checkSig && Array.isArray(saved.checked)) {
+            saved.checked.forEach(name => {
+                const c = checkCards().find(x => x.dataset.ing === name);
+                if (c) c.classList.add('checked');
+            });
+        }
+    } catch(e) {}
+    updateChecklist();
 }
 
 // ── Storico render ────────────────────────────────────────────────────
