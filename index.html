@@ -11,7 +11,8 @@
     <meta name="apple-mobile-web-app-title" content="Pizza Lab">
     <link rel="apple-touch-icon" href="icon.svg">
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&family=Courier+Prime:wght@400;700&family=Permanent+Marker&display=swap" rel="stylesheet">
+    <script>(function(){try{var t=localStorage.getItem('pizzalab_theme');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
     <!-- Firebase -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
@@ -92,6 +93,39 @@
         .res-value { font-size: 1.2rem; font-weight: 700; color: white; }
         .res-unit { font-size: 0.85rem; color: #64748b; font-weight: 400; }
         .res-icon { font-size: 1.4rem; margin-bottom: 6px; }
+        .result-card.hydration .res-label, .result-card.hydration .res-value { color: #38bdf8; }
+        .result-card.highlight .res-label { color: #a7f3d0; }
+        .result-card.highlight .res-value { color: #34d399; font-size: 1.4rem; }
+        .target-label { font-size: 1rem; color: #a855f7; }
+        .input-glass.target-input { border-color: #a855f7; padding: 16px; }
+        .sync-text { color: #475569; }
+        .text-muted { color: #64748b; }
+        .muted-note { font-size: .82rem; color: #475569; }
+        .costi-riepilogo-box { color: #94a3b8; font-size: 0.85rem; }
+        .stat-new { color: #a78bfa; }
+        .stat-frigo { color: #38bdf8; }
+        .dot-new-solina { background: #F97316; } .dot-new-farro { background: #22C55E; } .dot-new-normale { background: #3B82F6; }
+        .dot-frigo-solina { background: #7C2D12; } .dot-frigo-farro { background: #14532D; } .dot-frigo-normale { background: #1E3A8A; }
+        .login-input { width: 100%; padding: 10px 14px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.08); color: #fff; font-size: 0.9rem; box-sizing: border-box; margin-bottom: 8px; outline: none; font-family: inherit; }
+        .login-btn-primary { width: 100%; padding: 11px; border-radius: 10px; border: none; background: linear-gradient(135deg,#a855f7,#6366f1); color: #fff; font-weight: 600; font-size: 0.9rem; cursor: pointer; font-family: inherit; }
+        .login-link { background: none; border: none; color: rgba(255,255,255,0.5); font-size: 0.8rem; cursor: pointer; margin-top: 0.5rem; padding: 4px; font-family: inherit; }
+        .login-link-reset { color: rgba(255,255,255,0.4); font-size: 0.75rem; margin-top: 6px; padding: 2px; width: 100%; }
+        .login-link-dim { color: rgba(255,255,255,0.3); font-size: 0.75rem; margin-top: 0.25rem; text-decoration: underline; }
+
+        /* Selettore tema */
+        .theme-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .theme-opt { border: 1px solid rgba(255,255,255,0.1); border-radius: 14px; padding: 10px; cursor: pointer; transition: all 0.2s; background: rgba(255,255,255,0.02); }
+        .theme-opt:hover { border-color: rgba(255,255,255,0.25); }
+        .theme-opt.active { border-color: #a855f7; box-shadow: 0 0 0 2px rgba(168,85,247,0.3); }
+        .theme-preview { height: 64px; border-radius: 8px; margin-bottom: 8px; position: relative; overflow: hidden; }
+        .theme-preview.punk { background: #0f172a; background-image: radial-gradient(at 50% 0%, hsla(225,39%,30%,1) 0, transparent 60%), radial-gradient(at 100% 0%, hsla(339,49%,30%,1) 0, transparent 50%); }
+        .theme-preview.punk::before { content: ''; position: absolute; left: 10px; top: 12px; width: 60%; height: 8px; border-radius: 4px; background: linear-gradient(90deg,#6366f1,#a855f7); }
+        .theme-preview.punk::after { content: ''; position: absolute; left: 10px; right: 10px; bottom: 10px; height: 22px; border-radius: 6px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); }
+        .theme-preview.minimal { background: #f3f1ec; border: 1px solid #111; }
+        .theme-preview.minimal::before { content: 'PAN'; position: absolute; left: 10px; top: 4px; font-family: 'Permanent Marker', cursive; font-size: 1.2rem; color: #111; line-height: 1; }
+        .theme-preview.minimal::after { content: ''; position: absolute; left: 10px; right: 10px; bottom: 10px; height: 22px; background: #fff; border: 1px solid #111; }
+        .theme-name { font-size: 0.85rem; font-weight: 600; }
+        .theme-desc { font-size: 0.68rem; color: #64748b; margin-top: 2px; }
 
         /* Checklist impasto */
         .check-progress { grid-column: span 2; display: flex; align-items: center; gap: 12px; background: rgba(139,92,246,0.08); border: 1px solid rgba(139,92,246,0.25); border-radius: 16px; padding: 12px 14px; transition: all 0.3s; }
@@ -282,6 +316,8 @@
 .nf-btn-minus{background:#ef4444 !important;color:#fff}
 .nf-btn-all{background:#f59e0b !important;color:#fff}
 .nf-btn-expand{background:rgba(255,255,255,0.15) !important}
+.nf-ball-consume.nf-btn-danger{background:#ef4444}
+.nf-modal-content .nf-btn-cancel{background:rgba(255,255,255,0.15)}
 .nf-balls{margin-top:10px;padding:10px;background:rgba(0,0,0,0.2);border-radius:8px;max-height:240px;overflow-y:auto}
 .nf-ball{display:flex;align-items:center;gap:8px;padding:4px 0;font-size:13px}
 .nf-ball.consumed{opacity:0.5}
@@ -309,6 +345,167 @@
 .nf-type-chip.nf-type-farro { background: rgba(34,197,94,0.15); color: #14532d; }
 .nf-type-chip.nf-type-romano { background: rgba(239,68,68,0.15); color: #7f1d1d; }
 .nf-type-chip.nf-type-other { background: rgba(148,163,184,0.15); color: #475569; }
+
+/* ═══════════════════════════════════════════════════════════════════
+   TEMA "MINIMAL" — carta bianca, inchiostro nero, macchina da scrivere
+   (attivo con <html data-theme="minimal">; il tema base è "Punk")
+   ═══════════════════════════════════════════════════════════════════ */
+html[data-theme="minimal"] { color-scheme: light; }
+html[data-theme="minimal"] body { background: #f3f1ec; background-image: none; color: #111; font-family: 'Courier Prime', 'Courier New', monospace; }
+html[data-theme="minimal"] .blob { display: none; }
+html[data-theme="minimal"] h1 { color: #111 !important; background-image: none !important; -webkit-text-fill-color: #111; font-family: 'Permanent Marker', cursive; font-weight: 400; font-size: 2.1rem; letter-spacing: 1px; line-height: 1; }
+html[data-theme="minimal"] .text-gray-400 { color: #6b6b6b !important; }
+html[data-theme="minimal"] .border-white\/10 { border-color: #111 !important; }
+html[data-theme="minimal"] .sync-text, html[data-theme="minimal"] .text-muted, html[data-theme="minimal"] .muted-note, html[data-theme="minimal"] .costi-riepilogo-box { color: #6b6b6b; }
+html[data-theme="minimal"] .sync-dot.online { background: #111; }
+html[data-theme="minimal"] .sync-dot.offline { background: #fff; border: 1px solid #111; box-sizing: border-box; }
+html[data-theme="minimal"] .sync-dot.loading { background: #6b6b6b; }
+html[data-theme="minimal"] .section-title { font-family: 'Permanent Marker', cursive; font-weight: 400; font-size: 1.5rem; }
+html[data-theme="minimal"] .tool-card-title { font-family: 'Permanent Marker', cursive; font-weight: 400; font-size: 1.1rem; color: #111; }
+html[data-theme="minimal"] .tool-card, html[data-theme="minimal"] .chart-wrap, html[data-theme="minimal"] .history-entry, html[data-theme="minimal"] .chart-stat, html[data-theme="minimal"] .frigo-stat-card, html[data-theme="minimal"] .cassetto-card, html[data-theme="minimal"] .nf-batch-card, html[data-theme="minimal"] .result-card { background: #fff; border: 1px solid #111; border-radius: 0; }
+
+/* Login */
+html[data-theme="minimal"] .sync-overlay { background: rgba(243,241,236,0.98); }
+html[data-theme="minimal"] .sync-card { background: #fff; border: 1px solid #111; border-radius: 0; box-shadow: 6px 6px 0 #111; }
+html[data-theme="minimal"] .sync-card h2 { font-family: 'Permanent Marker', cursive; font-weight: 400; font-size: 1.8rem; }
+html[data-theme="minimal"] .sync-card p { color: #444; }
+html[data-theme="minimal"] .sync-hint { color: #888; }
+html[data-theme="minimal"] .btn-google { border: 1px solid #111; border-radius: 0; box-shadow: none; font-family: inherit; }
+html[data-theme="minimal"] .btn-google:hover { transform: none; box-shadow: 3px 3px 0 #111; }
+html[data-theme="minimal"] .login-input { background: #fff; border: 1px solid #111; color: #111; border-radius: 0; }
+html[data-theme="minimal"] .login-btn-primary { background: #111; border-radius: 0; }
+html[data-theme="minimal"] .login-link { color: #444; }
+html[data-theme="minimal"] .login-link-dim, html[data-theme="minimal"] .login-link-reset { color: #777; }
+
+/* Nav */
+html[data-theme="minimal"] .bottom-nav { background: #f3f1ec; border-top: 1px solid #111; backdrop-filter: none; -webkit-backdrop-filter: none; }
+html[data-theme="minimal"] .nav-item { color: #888; text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.58rem; }
+html[data-theme="minimal"] .nav-item.active { color: #111; font-weight: 700; }
+html[data-theme="minimal"] .nav-item.active .nav-icon { transform: none; }
+html[data-theme="minimal"] .nav-icon { filter: grayscale(1) contrast(1.2); }
+html[data-theme="minimal"] .nav-item.active .nav-icon { filter: none; }
+
+/* Input */
+html[data-theme="minimal"] .input-glass { background: #fff; border: 1px solid #111; color: #111; border-radius: 0; font-family: inherit; }
+html[data-theme="minimal"] .input-glass::placeholder { color: #999; }
+html[data-theme="minimal"] .input-glass:focus { background: #fff; border-color: #111; box-shadow: 3px 3px 0 #111; }
+html[data-theme="minimal"] .input-label { color: #111; text-transform: uppercase; letter-spacing: 1px; font-size: 0.68rem; }
+html[data-theme="minimal"] .target-label { color: #111; font-size: 0.8rem; font-weight: 700; }
+html[data-theme="minimal"] .input-glass.target-input { border: 2px solid #111; }
+html[data-theme="minimal"] input[type="date"] { color-scheme: light; }
+
+/* Tabs */
+html[data-theme="minimal"] .recipe-tabs, html[data-theme="minimal"] .chart-tabs, html[data-theme="minimal"] .frigo-type-tabs { background: #fff; border: 1px solid #111; border-radius: 0; padding: 0; gap: 0; }
+html[data-theme="minimal"] .rtab, html[data-theme="minimal"] .chart-tab, html[data-theme="minimal"] .frigo-ttab { border-radius: 0; color: #666; text-transform: uppercase; letter-spacing: 1px; font-size: 0.72rem; }
+html[data-theme="minimal"] .rtab.active, html[data-theme="minimal"] .chart-tab.active, html[data-theme="minimal"] .frigo-ttab.active { background: #111; color: #fff; box-shadow: none; }
+
+/* Bottoni */
+html[data-theme="minimal"] .btn-calc, html[data-theme="minimal"] .btn-green { background: #111; border-radius: 0; box-shadow: none; font-family: inherit; letter-spacing: 2px; text-transform: uppercase; }
+html[data-theme="minimal"] .btn-calc:hover, html[data-theme="minimal"] .btn-green:hover { transform: none; box-shadow: 4px 4px 0 #999; }
+html[data-theme="minimal"] .btn-outline, html[data-theme="minimal"] .btn-danger, html[data-theme="minimal"] .chart-nav-btn, html[data-theme="minimal"] .check-reset { background: #fff; border: 1px solid #111; color: #111; border-radius: 0; font-family: inherit; }
+html[data-theme="minimal"] .btn-outline:hover, html[data-theme="minimal"] .chart-nav-btn:hover, html[data-theme="minimal"] .check-reset:hover { background: #111; color: #fff; }
+html[data-theme="minimal"] .btn-danger { border-style: dashed; }
+html[data-theme="minimal"] .btn-del { color: #999; }
+
+/* Preset */
+html[data-theme="minimal"] .preset-chip { background: #fff; border: 1px solid #111; color: #111; border-radius: 0; }
+html[data-theme="minimal"] .preset-chip:hover { background: #111; color: #fff; }
+
+/* Risultati */
+html[data-theme="minimal"] .res-label { color: #666; letter-spacing: 1px; }
+html[data-theme="minimal"] .res-value { color: #111; }
+html[data-theme="minimal"] .res-unit { color: #666; }
+html[data-theme="minimal"] .result-card.hydration, html[data-theme="minimal"] .result-card.highlight { background: #fff; border: 2px solid #111; }
+html[data-theme="minimal"] .result-card.hydration .res-label, html[data-theme="minimal"] .result-card.hydration .res-value, html[data-theme="minimal"] .result-card.highlight .res-label, html[data-theme="minimal"] .result-card.highlight .res-value { color: #111; }
+html[data-theme="minimal"] .save-panel { background: #fff; border: 1px dashed #111; border-radius: 0; }
+html[data-theme="minimal"] .save-panel-title { color: #111; }
+
+/* Checklist */
+html[data-theme="minimal"] .check-progress { background: #fff; border: 1px solid #111; border-radius: 0; }
+html[data-theme="minimal"] .check-progress-txt { color: #111; }
+html[data-theme="minimal"] .check-progress-hint { color: #666; }
+html[data-theme="minimal"] .check-progress-bar { background: #e6e3dc; }
+html[data-theme="minimal"] .check-progress-fill { background: #111; }
+html[data-theme="minimal"] .check-progress.done { background: #111; border-color: #111; }
+html[data-theme="minimal"] .check-progress.done .check-progress-txt { color: #fff; }
+html[data-theme="minimal"] .check-progress.done .check-progress-hint { color: #bbb; }
+html[data-theme="minimal"] .check-progress.done .check-progress-bar { background: rgba(255,255,255,0.25); }
+html[data-theme="minimal"] .check-progress.done .check-progress-fill { background: #fff; }
+html[data-theme="minimal"] .check-progress.done .check-reset { background: #111; color: #fff; border-color: #fff; }
+html[data-theme="minimal"] .check-box { border: 1.5px solid #111; border-radius: 0; }
+html[data-theme="minimal"] .result-card.checked { background: #111; border-color: #111; }
+html[data-theme="minimal"] .result-card.checked .check-box { background: #fff; border-color: #fff; color: #111; }
+html[data-theme="minimal"] .result-card.checked .res-label { color: #bbb; opacity: 1; }
+html[data-theme="minimal"] .result-card.checked .res-value { color: #fff; }
+html[data-theme="minimal"] .result-card.checked .res-unit { color: #bbb; }
+
+/* Storico / grafici */
+html[data-theme="minimal"] .chart-title, html[data-theme="minimal"] .chart-cnt, html[data-theme="minimal"] .chart-day, html[data-theme="minimal"] .chart-legend, html[data-theme="minimal"] .chart-stat-label, html[data-theme="minimal"] .year-cell-label { color: #666; }
+html[data-theme="minimal"] .chart-nav-title, html[data-theme="minimal"] .chart-stat-val, html[data-theme="minimal"] .stat-new, html[data-theme="minimal"] .stat-frigo { color: #111; }
+html[data-theme="minimal"] .chart-stat-val[style] { color: #111 !important; }
+html[data-theme="minimal"] .chart-stack, html[data-theme="minimal"] .year-cell, html[data-theme="minimal"] .chart-legend-dot { border-radius: 0; }
+html[data-theme="minimal"] .chart-day.is-today { color: #111; text-decoration: underline; }
+html[data-theme="minimal"] .dot-new-solina { background: #111; }
+html[data-theme="minimal"] .dot-new-farro { background: #777; }
+html[data-theme="minimal"] .dot-new-normale { background: #c4c0b6; }
+html[data-theme="minimal"] .dot-frigo-solina { background: repeating-linear-gradient(45deg,#111 0 2px,#fff 2px 4px); }
+html[data-theme="minimal"] .dot-frigo-farro { background: repeating-linear-gradient(45deg,#777 0 2px,#fff 2px 4px); }
+html[data-theme="minimal"] .dot-frigo-normale { background: repeating-linear-gradient(45deg,#c4c0b6 0 2px,#fff 2px 4px); }
+html[data-theme="minimal"] .chart-legend-dot { border: 1px solid #111; box-sizing: border-box; }
+html[data-theme="minimal"] .day-label { color: #111; font-family: 'Permanent Marker', cursive; font-weight: 400; font-size: 1.05rem; }
+html[data-theme="minimal"] .day-total { background: #111; color: #fff; border-radius: 0; }
+html[data-theme="minimal"] .entry-time, html[data-theme="minimal"] .entry-weight, html[data-theme="minimal"] .entry-note { color: #666; }
+html[data-theme="minimal"] .entry-note { border-top: 1px solid #e6e3dc; }
+html[data-theme="minimal"] .empty-state { color: #666; }
+html[data-theme="minimal"] .code-chip { background: #fff; border: 1px solid #111; color: #111; border-radius: 0; }
+
+/* Costi */
+html[data-theme="minimal"] .costi-label { color: #111; }
+html[data-theme="minimal"] .costi-summary-row { border-bottom: 1px solid #e6e3dc; }
+html[data-theme="minimal"] .costi-total { border-top: 2px solid #111; }
+html[data-theme="minimal"] .costi-total[style] { border-top-color: #111 !important; }
+
+/* Strumenti */
+html[data-theme="minimal"] .temp-result, html[data-theme="minimal"] .temp-result.cold, html[data-theme="minimal"] .temp-result.ok { background: #fff; border: 1px solid #111; border-radius: 0; }
+html[data-theme="minimal"] .temp-result.warm { background: #fff; border: 2px dashed #111; border-radius: 0; }
+html[data-theme="minimal"] .temp-label, html[data-theme="minimal"] .temp-note { color: #666; }
+html[data-theme="minimal"] .user-avatar { border-color: #111; }
+html[data-theme="minimal"] .theme-opt { background: #fff; border: 1px solid #111; border-radius: 0; }
+html[data-theme="minimal"] .theme-opt:hover { border-color: #111; }
+html[data-theme="minimal"] .theme-opt.active { box-shadow: 4px 4px 0 #111; }
+html[data-theme="minimal"] .theme-preview { border-radius: 0; }
+html[data-theme="minimal"] .theme-desc { color: #666; }
+
+/* Frigo */
+html[data-theme="minimal"] .frigo-stat-card.highlight-frigo, html[data-theme="minimal"] .frigo-stat-card.highlight-fatto { background: #fff; border-color: #111; }
+html[data-theme="minimal"] .frigo-stat-val { color: #111; }
+html[data-theme="minimal"] .frigo-stat-label, html[data-theme="minimal"] .cassetto-meta { color: #666; }
+html[data-theme="minimal"] .frigo-add-form { background: #fff; border: 1px dashed #111; border-radius: 0; }
+html[data-theme="minimal"] .frigo-add-title { color: #111; }
+html[data-theme="minimal"] .badge-fatto, html[data-theme="minimal"] .badge-frigo { background: #fff; color: #111; border: 1px solid #111; border-radius: 0; }
+html[data-theme="minimal"] .nf-summary { background: #111; color: #fff; border-radius: 0; }
+html[data-theme="minimal"] .nf-breakdown > div { background: rgba(255,255,255,0.12); border-radius: 0; }
+html[data-theme="minimal"] .nf-empty { color: #666; opacity: 1; }
+html[data-theme="minimal"] .nf-batch-card.nf-type-solina, html[data-theme="minimal"] .nf-batch-card.nf-type-farro, html[data-theme="minimal"] .nf-batch-card.nf-type-romano, html[data-theme="minimal"] .nf-batch-card.nf-type-other { border-left: 4px solid #111; }
+html[data-theme="minimal"] .nf-batch-card.nf-type-solina .nf-batch-head, html[data-theme="minimal"] .nf-batch-card.nf-type-farro .nf-batch-head, html[data-theme="minimal"] .nf-batch-card.nf-type-romano .nf-batch-head { background: none; }
+html[data-theme="minimal"] .nf-batch-age { color: #666; opacity: 1; }
+html[data-theme="minimal"] .nf-count-tot { color: #666; opacity: 1; }
+html[data-theme="minimal"] .nf-batch-ctrls button, html[data-theme="minimal"] .nf-actions button { background: #fff; border: 1px solid #111; color: #111; border-radius: 0; font-family: inherit; }
+html[data-theme="minimal"] .nf-batch-ctrls .nf-btn-plus, html[data-theme="minimal"] .nf-actions .nf-btn-add-manual { background: #111 !important; color: #fff; }
+html[data-theme="minimal"] .nf-batch-ctrls .nf-btn-minus, html[data-theme="minimal"] .nf-batch-ctrls .nf-btn-expand { background: #fff !important; color: #111; }
+html[data-theme="minimal"] .nf-batch-ctrls .nf-btn-all { background: #fff !important; color: #111; border-style: dashed; }
+html[data-theme="minimal"] .nf-balls { background: #f3f1ec; border-radius: 0; border: 1px solid #e6e3dc; }
+html[data-theme="minimal"] .nf-ball-consume { background: #111; border-radius: 0; font-family: inherit; }
+html[data-theme="minimal"] .nf-ball-consume.nf-btn-danger { background: #fff; color: #111; border: 1px solid #111; }
+html[data-theme="minimal"] .nf-tag { background: #e6e3dc; color: #111; border-radius: 0; }
+html[data-theme="minimal"] .nf-type-chip { background: #fff; color: #111; border: 1px solid #111; border-radius: 0; }
+html[data-theme="minimal"] .nf-modal { background: rgba(17,17,17,0.5); }
+html[data-theme="minimal"] .nf-modal-content { background: #f3f1ec; color: #111; border: 1px solid #111; border-radius: 0; box-shadow: 6px 6px 0 #111; }
+html[data-theme="minimal"] .nf-modal-content button { background: #111; border-radius: 0; font-family: inherit; }
+html[data-theme="minimal"] .nf-modal-content .nf-btn-cancel { background: #fff; color: #111; border: 1px solid #111; }
+html[data-theme="minimal"] .nf-log-entry { background: #fff; border: 1px solid #e6e3dc; border-radius: 0; }
+html[data-theme="minimal"] .nf-manual-field { opacity: 1; color: #444; }
+html[data-theme="minimal"] .nf-manual-input { background: #fff; border: 1px solid #111; color: #111; border-radius: 0; font-family: inherit; }
 </style>
 </head>
 <body>
@@ -325,15 +522,15 @@
             Accedi con Google
         </button>
         <div id="email-login-form" style="display:none; width:100%; margin-top:0.75rem;">
-            <input id="email-input" type="email" placeholder="Email" style="width:100%; padding:10px 14px; border-radius:10px; border:1px solid rgba(255,255,255,0.2); background:rgba(255,255,255,0.08); color:#fff; font-size:0.9rem; box-sizing:border-box; margin-bottom:8px; outline:none;" />
-            <input id="password-input" type="password" placeholder="Password" style="width:100%; padding:10px 14px; border-radius:10px; border:1px solid rgba(255,255,255,0.2); background:rgba(255,255,255,0.08); color:#fff; font-size:0.9rem; box-sizing:border-box; margin-bottom:8px; outline:none;" />
+            <input id="email-input" type="email" placeholder="Email" class="login-input" />
+            <input id="password-input" type="password" placeholder="Password" class="login-input" />
             <p id="email-login-error" style="color:#f87171; font-size:0.8rem; margin:0 0 8px; display:none;"></p>
             <p id="email-login-ok" style="color:#4ade80; font-size:0.8rem; margin:0 0 8px; display:none;"></p>
-            <button onclick="signInWithEmail()" style="width:100%; padding:11px; border-radius:10px; border:none; background:linear-gradient(135deg,#a855f7,#6366f1); color:#fff; font-weight:600; font-size:0.9rem; cursor:pointer;">Accedi</button>
-            <button onclick="resetEmailPassword()" style="background:none; border:none; color:rgba(255,255,255,0.4); font-size:0.75rem; cursor:pointer; margin-top:6px; padding:2px; width:100%;">Imposta / reimposta password</button>
+            <button onclick="signInWithEmail()" class="login-btn-primary">Accedi</button>
+            <button onclick="resetEmailPassword()" class="login-link login-link-reset">Imposta / reimposta password</button>
         </div>
-        <button onclick="toggleEmailForm()" style="background:none; border:none; color:rgba(255,255,255,0.5); font-size:0.8rem; cursor:pointer; margin-top:0.5rem; padding:4px;">Accedi con email</button>
-        <button onclick="enterDemoMode()" style="background:none; border:none; color:rgba(255,255,255,0.3); font-size:0.75rem; cursor:pointer; margin-top:0.25rem; padding:4px; text-decoration:underline;">Entra senza account (demo)</button>
+        <button onclick="toggleEmailForm()" class="login-link">Accedi con email</button>
+        <button onclick="enterDemoMode()" class="login-link login-link-dim">Entra senza account (demo)</button>
         <p class="sync-hint">I tuoi dati restano sincronizzati su tutti i tuoi dispositivi</p>
     </div>
     <!-- Vista iOS PWA: guida ad aprire in Safari -->
@@ -360,7 +557,7 @@
         <div class="flex justify-between items-center mb-5 pt-2">
             <div>
                 <h1 class="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400">Pizza Lab</h1>
-                <p class="text-xs" style="color:#475569;"><span id="sync-dot" class="sync-dot loading"></span><span id="sync-label">connessione...</span></p>
+                <p class="text-xs sync-text"><span id="sync-dot" class="sync-dot loading"></span><span id="sync-label">connessione...</span></p>
             </div>
             <button class="btn-outline no-print" onclick="printRecipe()">🖨️ Stampa</button>
         </div>
@@ -382,8 +579,8 @@
                 <div class="input-group col-span-2"><label class="input-label">🍞 Lievito (g)</label><input type="number" id="lievito-g" value="50" step="1" class="input-glass"></div>
             </div>
             <div class="mt-5 pt-4 border-t border-white/10">
-                <label class="input-label text-center mb-2" style="font-size:1rem;color:#a855f7;">🎯 Obiettivo: Palline (290g)</label>
-                <input type="number" id="target-solina" placeholder="Es. 55" class="input-glass text-center text-xl font-bold" style="border-color:#a855f7;padding:16px;">
+                <label class="input-label target-label text-center mb-2">🎯 Obiettivo: Palline (290g)</label>
+                <input type="number" id="target-solina" placeholder="Es. 55" class="input-glass target-input text-center text-xl font-bold">
             </div>
             <div class="flex gap-2 mt-3 no-print">
                 <button class="btn-outline" style="flex:1" onclick="savePreset('solina')">💾 Salva come preset</button>
@@ -403,8 +600,8 @@
                 <div class="input-group"><label class="input-label">🍞 Lievito (g)</label><input type="number" id="lievito-farro-g" value="50" step="1" class="input-glass"></div>
             </div>
             <div class="mt-5 pt-4 border-t border-white/10">
-                <label class="input-label text-center mb-2" style="font-size:1rem;color:#a855f7;">🎯 Obiettivo: Palline (290g)</label>
-                <input type="number" id="target-farro" placeholder="Es. 55" class="input-glass text-center text-xl font-bold" style="border-color:#a855f7;padding:16px;">
+                <label class="input-label target-label text-center mb-2">🎯 Obiettivo: Palline (290g)</label>
+                <input type="number" id="target-farro" placeholder="Es. 55" class="input-glass target-input text-center text-xl font-bold">
             </div>
             <div class="flex gap-2 mt-3 no-print">
                 <button class="btn-outline" style="flex:1" onclick="savePreset('farro')">💾 Salva come preset</button>
@@ -424,8 +621,8 @@
                 <div class="input-group"><label class="input-label">🫒 Olio (kg)</label><input type="number" id="olio-oliva-kg" value="1" step="0.1" class="input-glass"></div>
             </div>
             <div class="mt-5 pt-4 border-t border-white/10">
-                <label class="input-label text-center mb-2" style="font-size:1rem;color:#a855f7;">🎯 Obiettivo: Palline (190g)</label>
-                <input type="number" id="target-romano" placeholder="Es. 55" class="input-glass text-center text-xl font-bold" style="border-color:#a855f7;padding:16px;">
+                <label class="input-label target-label text-center mb-2">🎯 Obiettivo: Palline (190g)</label>
+                <input type="number" id="target-romano" placeholder="Es. 55" class="input-glass target-input text-center text-xl font-bold">
             </div>
             <div class="flex gap-2 mt-3 no-print">
                 <button class="btn-outline" style="flex:1" onclick="savePreset('romano')">💾 Salva come preset</button>
@@ -477,12 +674,12 @@
             <div id="weekly-chart" class="chart-bars"></div>
             <div id="year-chart" style="display:none"></div>
             <div class="chart-legend">
-                <span><span class="chart-legend-dot" style="background:#F97316"></span>Solina nuove</span>
-                <span><span class="chart-legend-dot" style="background:#22C55E"></span>Farro nuove</span>
-                <span><span class="chart-legend-dot" style="background:#3B82F6"></span>Normale nuove</span>
-                <span><span class="chart-legend-dot" style="background:#7C2D12"></span>Solina frigo</span>
-                <span><span class="chart-legend-dot" style="background:#14532D"></span>Farro frigo</span>
-                <span><span class="chart-legend-dot" style="background:#1E3A8A"></span>Normale frigo</span>
+                <span><span class="chart-legend-dot dot-new-solina"></span>Solina nuove</span>
+                <span><span class="chart-legend-dot dot-new-farro"></span>Farro nuove</span>
+                <span><span class="chart-legend-dot dot-new-normale"></span>Normale nuove</span>
+                <span><span class="chart-legend-dot dot-frigo-solina"></span>Solina frigo</span>
+                <span><span class="chart-legend-dot dot-frigo-farro"></span>Farro frigo</span>
+                <span><span class="chart-legend-dot dot-frigo-normale"></span>Normale frigo</span>
             </div>
             <div id="chart-stats" class="chart-stats"></div>
         </div>
@@ -491,9 +688,9 @@
             <div id="cons-weekly-chart" class="chart-bars"></div>
             <div id="cons-year-chart" style="display:none"></div>
             <div class="chart-legend">
-                <span><span class="chart-legend-dot" style="background:#F97316"></span>Solina</span>
-                <span><span class="chart-legend-dot" style="background:#22C55E"></span>Farro</span>
-                <span><span class="chart-legend-dot" style="background:#3B82F6"></span>Normale</span>
+                <span><span class="chart-legend-dot dot-new-solina"></span>Solina</span>
+                <span><span class="chart-legend-dot dot-new-farro"></span>Farro</span>
+                <span><span class="chart-legend-dot dot-new-normale"></span>Normale</span>
             </div>
             <div id="cons-stats" class="chart-stats"></div>
         </div>
@@ -521,7 +718,7 @@
         <div class="tool-card">
             <div class="tool-card-title">🧮 Riepilogo ultimo impasto</div>
             <p class="text-xs text-gray-400 mb-3">Calcola ricetta, poi torna qui per vedere costi e calorie.</p>
-            <div id="costi-riepilogo" style="color:#94a3b8; font-size:0.85rem;">Nessun calcolo effettuato ancora.</div>
+            <div id="costi-riepilogo" class="costi-riepilogo-box">Nessun calcolo effettuato ancora.</div>
         </div>
     </div>
 
@@ -597,12 +794,17 @@
             <div id="all-presets-list"></div>
         </div>
         <div class="tool-card">
+            <div class="tool-card-title">🎨 Tema grafico</div>
+            <p class="text-xs text-gray-400 mb-3">Scegli lo stile dell'app. La scelta resta salvata su questo dispositivo.</p>
+            <div id="theme-picker" class="theme-grid"></div>
+        </div>
+        <div class="tool-card">
             <div class="tool-card-title">👤 Account</div>
             <div class="flex items-center gap-3" style="margin-bottom:12px;">
                 <img id="user-avatar" class="user-avatar" style="display:none;">
                 <div>
                     <div id="user-name" style="font-size:.9rem;font-weight:600;"></div>
-                    <div id="user-email" style="font-size:.75rem;color:#94a3b8;"></div>
+                    <div id="user-email" style="font-size:.75rem;" class="text-muted"></div>
                 </div>
             </div>
             <button class="btn-danger" onclick="signOutUser()">Esci dall'account</button>
@@ -896,7 +1098,7 @@ function renderAllPresets() {
     const container = document.getElementById('all-presets-list');
     const TYPE_ICONS = { solina:'🌾', farro:'🌿', romano:'🍕' };
     const all = Object.entries(presetsCache).flatMap(([type,list]) => list.map((pr,i) => ({type,i,name:pr.name})));
-    if (!all.length) { container.innerHTML = '<p style="font-size:.82rem;color:#475569;">Nessun preset. Vai su una ricetta e premi "Salva come preset".</p>'; return; }
+    if (!all.length) { container.innerHTML = '<p class="muted-note">Nessun preset. Vai su una ricetta e premi "Salva come preset".</p>'; return; }
     container.innerHTML = all.map(pr =>
         `<div class="history-entry"><div class="entry-main"><div class="entry-left"><span class="entry-icon">${TYPE_ICONS[pr.type]||'🍞'}</span><div><div class="entry-type">${pr.name}</div><div class="entry-time">${pr.type}</div></div></div><div class="entry-right"><button class="btn-del" onclick="deletePreset('${pr.type}',${pr.i})">✕</button></div></div></div>`
     ).join('');
@@ -980,6 +1182,8 @@ async function deleteCassetto(id) {
 }
 
 function renderFrigo() {
+    // Il Frigo V2 (nfMount) sostituisce il contenuto della sezione: se i vecchi elementi non ci sono, non c'è nulla da renderizzare
+    if (!document.getElementById('stat-totale') || !document.getElementById('frigo-list')) return;
     const totale = frigoCache.reduce((s, c) => s + (c.palline || 0), 0);
     const fatti = frigoCache.filter(c => c.stato === 'fatto').reduce((s, c) => s + (c.palline || 0), 0);
     const inFrigo = frigoCache.filter(c => c.stato === 'in_frigo').reduce((s, c) => s + (c.palline || 0), 0);
@@ -1021,7 +1225,7 @@ function renderFrigo() {
                     <div class="cassetto-right">
                         <div>
                             <div class="cassetto-palline">${c.palline}</div>
-                            <div style="font-size:0.65rem;color:#64748b;text-align:right;">palline</div>
+                            <div class="text-muted" style="font-size:0.65rem;text-align:right;">palline</div>
                         </div>
                         <button class="badge-stato ${isFatto ? 'badge-fatto' : 'badge-frigo'}" onclick="toggleStatoCassetto('${c.id}','${c.stato}')" title="Tocca per cambiare stato">
                             ${isFatto ? '✅ Fatto' : '🧊 In frigo'}
@@ -1045,7 +1249,7 @@ function showSection(name, btn) {
     if (name==='storico') { renderChart(); renderStorico(); }
     if (name==='frigo') { renderFrigo(); }
     if (name==='costi') { calcCostiRiepilogo(); }
-    if (name==='strumenti') { calcTemp(); renderAllPresets(); }
+    if (name==='strumenti') { calcTemp(); renderAllPresets(); renderThemePicker(); }
 }
 
 function switchRecipe(type, btn) {
@@ -1094,11 +1298,11 @@ function calculate(type) {
     checkSig = typeName+'|'+targetCount+'|'+Object.keys(lastCalcData).map(k=>k+'='+lastCalcData[k].val).join(',');
     const waterVal=data['Acqua']?data['Acqua'].val:0;
     let html='<div class="results-grid">';
-    if(totalFlour>0&&waterVal>0){const hyd=((waterVal/totalFlour)*100).toFixed(1);html+=`<div class="result-card full-width hydration"><div class="res-icon">💧</div><div class="res-label" style="color:#38bdf8;">Idratazione</div><div class="res-value" style="color:#38bdf8;">${hyd}<span class="res-unit">%</span></div></div>`;}
+    if(totalFlour>0&&waterVal>0){const hyd=((waterVal/totalFlour)*100).toFixed(1);html+=`<div class="result-card full-width hydration"><div class="res-icon">💧</div><div class="res-label">Idratazione</div><div class="res-value">${hyd}<span class="res-unit">%</span></div></div>`;}
     const nIng=Object.keys(data).length;
     html+=`<div class="check-progress no-print" id="check-progress"><div class="check-progress-main"><div class="check-progress-txt" id="check-progress-txt">Checklist impasto · 0/${nIng} inseriti</div><div class="check-progress-bar"><div class="check-progress-fill" id="check-progress-fill"></div></div><div class="check-progress-hint">Tocca un ingrediente quando l'hai pesato e messo nell'impasto.</div></div><button class="check-reset" onclick="resetChecklist()">↺ Reset</button></div>`;
     for(let k in data){const scaled=data[k].val*factor, dv=data[k].unit==='kg'?scaled.toFixed(2):Math.round(scaled);html+=`<div class="result-card checkable" data-ing="${k}" onclick="toggleIngrediente(this)"><div class="check-box">✓</div><div class="res-icon">${data[k].icon}</div><div class="res-label">${k}</div><div class="res-value">${dv} <span class="res-unit">${data[k].unit}</span></div></div>`;}
-    html+=`<div class="result-card full-width highlight"><div class="res-label" style="color:#a7f3d0;">Peso Totale Impasto</div><div class="res-value" style="color:#34d399;font-size:1.4rem;">${Math.round(targetKg*1000)} <span class="res-unit">g</span></div></div></div>`;
+    html+=`<div class="result-card full-width highlight"><div class="res-label">Peso Totale Impasto</div><div class="res-value">${Math.round(targetKg*1000)} <span class="res-unit">g</span></div></div></div>`;
     const container=document.getElementById('results-container');
     container.innerHTML=html; container.classList.remove('hidden');
     restoreChecklist();
@@ -1184,14 +1388,26 @@ let chartOffset = 0; // 0 = current period, -1 = previous, etc.
 const MONTH_NAMES = ['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
 const DAY_LABELS = ['Dom','Lun','Mar','Mer','Gio','Ven','Sab'];
 
-const CHART_COLORS = {
-    newSolina:    '#F97316',
-    newFarro:     '#22C55E',
-    newNormale:   '#3B82F6',
-    frigoSolina:  '#7C2D12',
-    frigoFarro:   '#14532D',
-    frigoNormale: '#1E3A8A'
+const CHART_PALETTES = {
+    punk: {
+        newSolina:    '#F97316',
+        newFarro:     '#22C55E',
+        newNormale:   '#3B82F6',
+        frigoSolina:  '#7C2D12',
+        frigoFarro:   '#14532D',
+        frigoNormale: '#1E3A8A'
+    },
+    minimal: {
+        newSolina:    '#111111',
+        newFarro:     '#777777',
+        newNormale:   '#c4c0b6',
+        frigoSolina:  'repeating-linear-gradient(45deg,#111 0 2px,#fff 2px 4px)',
+        frigoFarro:   'repeating-linear-gradient(45deg,#777 0 2px,#fff 2px 4px)',
+        frigoNormale: 'repeating-linear-gradient(45deg,#c4c0b6 0 2px,#fff 2px 4px)'
+    }
 };
+// CHART_COLORS legge sempre la palette del tema attivo
+const CHART_COLORS = new Proxy({}, { get: (_, k) => (CHART_PALETTES[currentTheme()] || CHART_PALETTES.punk)[k] });
 
 function setChartMode(mode, btn) {
     chartMode = mode; chartOffset = 0;
@@ -1277,8 +1493,8 @@ function renderStats(days) {
     const totalFrigo = days.reduce((s, d) => s + d.frigoP, 0);
     const activeDays = days.filter(d => d.total > 0).length;
     document.getElementById('chart-stats').innerHTML = `
-        <div class="chart-stat"><div class="chart-stat-val" style="color:#a78bfa">${totalNew}</div><div class="chart-stat-label">Palline nuove</div></div>
-        <div class="chart-stat"><div class="chart-stat-val" style="color:#38bdf8">${totalFrigo}</div><div class="chart-stat-label">Palline frigo</div></div>
+        <div class="chart-stat"><div class="chart-stat-val stat-new">${totalNew}</div><div class="chart-stat-label">Palline nuove</div></div>
+        <div class="chart-stat"><div class="chart-stat-val stat-frigo">${totalFrigo}</div><div class="chart-stat-label">Palline frigo</div></div>
         <div class="chart-stat"><div class="chart-stat-val">${activeDays}</div><div class="chart-stat-label">Giorni attivi</div></div>
     `;
 }
@@ -1431,6 +1647,38 @@ function printRecipe() {
     window.print();
 }
 
+
+// ── Temi grafici ──────────────────────────────────────────────────────
+const THEME_KEY = 'pizzalab_theme';
+const THEMES = {
+    punk:    { name: 'Punk',    desc: 'Scuro, neon, sfumature viola',           themeColor: '#6366f1' },
+    minimal: { name: 'Minimal', desc: 'Carta bianca, inchiostro, monospace',    themeColor: '#f3f1ec' }
+};
+function currentTheme() {
+    const t = document.documentElement.getAttribute('data-theme');
+    return THEMES[t] ? t : 'punk';
+}
+function applyTheme(t, save) {
+    if (!THEMES[t]) t = 'punk';
+    document.documentElement.setAttribute('data-theme', t);
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', THEMES[t].themeColor);
+    if (save) { try { localStorage.setItem(THEME_KEY, t); } catch(e) {} }
+    renderThemePicker();
+    // i grafici usano colori diversi per tema: ridisegna se visibili
+    try { if (!document.getElementById('section-storico').classList.contains('hidden')) renderChart(); } catch(e) {}
+}
+function renderThemePicker() {
+    const el = document.getElementById('theme-picker'); if (!el) return;
+    const cur = currentTheme();
+    el.innerHTML = Object.keys(THEMES).map(k => `
+        <div class="theme-opt${k === cur ? ' active' : ''}" onclick="applyTheme('${k}', true)">
+            <div class="theme-preview ${k}"></div>
+            <div class="theme-name">${THEMES[k].name}${k === cur ? ' ✓' : ''}</div>
+            <div class="theme-desc">${THEMES[k].desc}</div>
+        </div>`).join('');
+}
+(function initTheme() { let t = 'punk'; try { t = localStorage.getItem(THEME_KEY) || 'punk'; } catch(e) {} applyTheme(t, false); })();
 
 // ── Temperature ───────────────────────────────────────────────────────
 function calcTemp(){
@@ -1762,7 +2010,7 @@ auth.getRedirectResult().then(result => {
                     }
                     html += '</div>';
                 }
-                html += '<div style="margin-top:10px;text-align:right"><button class="nf-ball-consume" style="background:#ef4444" onclick="nfDeleteBatch(\''+bid+'\')">Elimina batch</button></div>';
+                html += '<div style="margin-top:10px;text-align:right"><button class="nf-ball-consume nf-btn-danger" onclick="nfDeleteBatch(\''+bid+'\')">Elimina batch</button></div>';
                 html += '</div></div>';
             }
             html += '</div>';
@@ -1786,7 +2034,7 @@ auth.getRedirectResult().then(result => {
             '<label class="nf-manual-field">Nota (opzionale)</label>' +
             '<input class="nf-manual-input" id="nf-man-note" placeholder="">' +
             '<div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end">' +
-            '<button style="background:rgba(255,255,255,0.15)" onclick="nfCloseModal(\'nf-modal-manual\')">Annulla</button>' +
+            '<button class="nf-btn-cancel" onclick="nfCloseModal(\'nf-modal-manual\')">Annulla</button>' +
             '<button onclick="nfSubmitManual()">Aggiungi</button>' +
             '</div></div>';
         document.body.appendChild(modal);

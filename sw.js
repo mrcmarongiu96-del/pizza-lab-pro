@@ -3,7 +3,7 @@
 // Tutto quello che è di Google/Firebase/CDN esterni passa DRITTO alla rete,
 // altrimenti rompe il login e le chiamate in tempo reale.
 
-const CACHE_NAME = 'pizzalab-v10';
+const CACHE_NAME = 'pizzalab-v11';
 const LOCAL_FILES = ['./', './index.html', './manifest.json', './icon.svg'];
 
 // Installazione: precarica i file locali
