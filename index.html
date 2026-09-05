@@ -545,6 +545,129 @@ html[data-theme="minimal"] .nf-log-entry { background: var(--m-soft); border-rad
 html[data-theme="minimal"] .nf-manual-field { opacity: 1; color: var(--m-muted); }
 html[data-theme="minimal"] .nf-manual-input { background: var(--m-soft); border: 1px solid transparent; color: var(--m-ink); border-radius: 10px; font-family: inherit; }
 html[data-theme="minimal"] .nf-manual-input:focus { outline: none; background: #fff; border-color: var(--m-accent); box-shadow: 0 0 0 3px var(--m-accent-soft); }
+
+/* ── Minimal · rifinitura editoriale ─────────────────────────────── */
+html[data-theme="minimal"] { --nav-h: 96px; }
+html[data-theme="minimal"] body { background: radial-gradient(120% 60% at 50% -10%, #fbf1e8 0%, rgba(251,241,232,0) 70%), var(--m-bg); }
+html[data-theme="minimal"] body::before { content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 0; opacity: 0.55; background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.2 0 0 0 0 0.16 0 0 0 0 0.12 0 0 0 0.05 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>"); }
+html[data-theme="minimal"] .app-container { position: relative; z-index: 1; }
+
+/* Masthead */
+html[data-theme="minimal"] #section-ricette h1::before { content: 'Laboratorio impasti'; display: block; font-family: var(--m-sans); font-size: 0.62rem; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; color: var(--m-accent-ink); margin-bottom: 6px; -webkit-text-fill-color: var(--m-accent-ink); }
+html[data-theme="minimal"] .sync-text { display: inline-flex; align-items: center; margin-top: 8px; padding: 3px 10px 3px 8px; border-radius: 999px; background: #fff; border: 1px solid var(--m-line); font-size: 0.68rem; font-weight: 500; color: var(--m-muted); }
+html[data-theme="minimal"] .section-title { display: block; }
+html[data-theme="minimal"] .section-title::before { display: block; font-family: var(--m-sans); font-size: 0.62rem; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; color: var(--m-accent-ink); margin-bottom: 4px; word-spacing: normal; }
+html[data-theme="minimal"] #section-storico .section-title::before { content: 'Registro'; }
+html[data-theme="minimal"] #section-frigo .section-title::before { content: 'Scorte'; }
+html[data-theme="minimal"] #section-costi .section-title::before { content: 'Economia'; }
+html[data-theme="minimal"] #section-strumenti .section-title::before { content: 'Utilità'; }
+html[data-theme="minimal"] .section-header { align-items: flex-end; margin-bottom: 1.25rem; gap: 10px; }
+html[data-theme="minimal"] .section-header .btn-outline, html[data-theme="minimal"] .section-header .btn-danger { padding: 8px 13px; font-size: 0.74rem; white-space: nowrap; }
+html[data-theme="minimal"] .section-header .section-title { font-size: 1.35rem; }
+
+/* Pillole per azioni secondarie */
+html[data-theme="minimal"] .btn-outline, html[data-theme="minimal"] .btn-danger, html[data-theme="minimal"] .check-reset, html[data-theme="minimal"] .preset-chip, html[data-theme="minimal"] .code-chip, html[data-theme="minimal"] .chart-nav-btn { border-radius: 999px; }
+html[data-theme="minimal"] .btn-outline, html[data-theme="minimal"] .btn-danger { padding: 9px 16px; font-weight: 600; }
+html[data-theme="minimal"] .preset-chip { padding: 6px 14px; box-shadow: 0 1px 2px rgba(28,25,23,0.04); }
+
+/* Tab ricette con icona */
+html[data-theme="minimal"] .recipe-tabs { padding: 5px; border-radius: 16px; }
+html[data-theme="minimal"] .rtab { padding: 11px 4px; border-radius: 12px; font-size: 0.82rem; transition: all 0.25s cubic-bezier(.2,.8,.2,1); }
+html[data-theme="minimal"] .rtab::before { margin-right: 5px; }
+html[data-theme="minimal"] .rtab:nth-child(1)::before { content: '🌾'; }
+html[data-theme="minimal"] .rtab:nth-child(2)::before { content: '🌿'; }
+html[data-theme="minimal"] .rtab:nth-child(3)::before { content: '🍕'; }
+html[data-theme="minimal"] .rtab:not(.active)::before { filter: grayscale(1) opacity(0.55); }
+
+/* Input: etichette in maiuscoletto, numeri in serif */
+html[data-theme="minimal"] .input-label { font-size: 0.64rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--m-muted); margin-bottom: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+html[data-theme="minimal"] input[type="number"].input-glass { font-family: var(--m-serif); font-size: 1.3rem; font-weight: 600; padding: 12px 16px; letter-spacing: -0.01em; }
+html[data-theme="minimal"] input[type="number"].input-glass::placeholder { font-family: var(--m-sans); font-size: 0.95rem; font-weight: 400; letter-spacing: 0; }
+html[data-theme="minimal"] .input-glass.input-sm { font-size: 0.95rem !important; padding: 9px 12px !important; }
+html[data-theme="minimal"] .input-glass.target-input { font-size: 1.9rem; padding: 14px 16px; }
+html[data-theme="minimal"] .target-label { text-transform: none; letter-spacing: 0; font-size: 0.9rem; }
+
+/* Bottone principale */
+html[data-theme="minimal"] .btn-calc { background: linear-gradient(180deg, #e2613d 0%, #cf4b28 100%); box-shadow: inset 0 1px 0 rgba(255,255,255,0.28), 0 12px 26px -12px rgba(207,75,40,0.75); padding: 17px; border-radius: 16px; transition: transform 0.15s, box-shadow 0.2s; }
+html[data-theme="minimal"] .btn-calc:active { transform: scale(0.985); }
+html[data-theme="minimal"] .btn-green { background: linear-gradient(180deg, #2a2624, #1c1917); box-shadow: inset 0 1px 0 rgba(255,255,255,0.10), 0 10px 22px -12px rgba(28,25,23,0.6); border-radius: 16px; }
+html[data-theme="minimal"] .btn-green:active { transform: scale(0.985); }
+
+/* Risultati: icona in cerchio, valori grandi */
+html[data-theme="minimal"] .results-grid { gap: 12px; }
+html[data-theme="minimal"] .result-card { padding: 18px 14px 16px; transition: transform 0.2s cubic-bezier(.2,.8,.2,1), background 0.2s, border-color 0.2s, box-shadow 0.2s; }
+html[data-theme="minimal"] .res-icon { width: 46px; height: 46px; border-radius: 50%; background: var(--m-soft); display: flex; align-items: center; justify-content: center; font-size: 1.35rem; margin-bottom: 10px; transition: background 0.2s; }
+html[data-theme="minimal"] .res-label { font-size: 0.64rem; font-weight: 700; letter-spacing: 0.1em; }
+html[data-theme="minimal"] .res-value { font-size: 1.6rem; line-height: 1.1; }
+html[data-theme="minimal"] .result-card.hydration { flex-direction: row; gap: 14px; padding: 16px 18px; justify-content: flex-start; text-align: left; }
+html[data-theme="minimal"] .result-card.hydration .res-icon { background: rgba(255,255,255,0.7); margin-bottom: 0; flex-shrink: 0; }
+html[data-theme="minimal"] .result-card.hydration .res-label { margin-bottom: 2px; }
+html[data-theme="minimal"] .result-card.hydration .res-value { font-size: 1.8rem; }
+html[data-theme="minimal"] .result-card.highlight { padding: 22px 18px; background: radial-gradient(120% 120% at 0% 0%, #2c2724 0%, #1c1917 60%); }
+html[data-theme="minimal"] .result-card.highlight .res-value { font-size: 2.1rem; }
+html[data-theme="minimal"] .result-card.checked .res-icon { background: #fff; }
+html[data-theme="minimal"] .result-card.checked { transform: translateY(-1px); }
+html[data-theme="minimal"] .check-box { width: 24px; height: 24px; top: 12px; right: 12px; }
+@keyframes mPop { 0% { transform: scale(0.5); } 60% { transform: scale(1.18); } 100% { transform: scale(1); } }
+html[data-theme="minimal"] .result-card.checked .check-box { animation: mPop 0.28s cubic-bezier(.2,.8,.2,1); }
+
+/* Checklist: barra che resta visibile mentre scorri */
+html[data-theme="minimal"] .check-progress { position: sticky; top: 10px; z-index: 5; background: rgba(255,255,255,0.86); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: var(--m-shadow-lg); }
+html[data-theme="minimal"] .check-progress.done { background: rgba(234,246,239,0.9); }
+html[data-theme="minimal"] .check-progress-bar { height: 7px; }
+html[data-theme="minimal"] .check-progress-fill { background: linear-gradient(90deg, #e2613d, #cf4b28); }
+html[data-theme="minimal"] .check-progress.done .check-progress-fill { background: var(--m-green); }
+
+/* Salvataggio come "scontrino" */
+html[data-theme="minimal"] .save-panel { padding: 18px; margin-top: 14px; border-top: 2px dashed var(--m-soft-2); }
+html[data-theme="minimal"] .save-panel-title { font-family: var(--m-serif); font-size: 1.05rem; font-weight: 600; color: var(--m-ink); }
+
+/* Nav flottante a pillola */
+html[data-theme="minimal"] .bottom-nav { left: 14px; right: 14px; bottom: calc(env(safe-area-inset-bottom) + 12px); border: 1px solid var(--m-line); border-radius: 30px; padding: 6px; background: rgba(255,255,255,0.88); backdrop-filter: blur(22px) saturate(1.3); -webkit-backdrop-filter: blur(22px) saturate(1.3); box-shadow: 0 2px 4px rgba(28,25,23,0.04), 0 20px 40px -16px rgba(28,25,23,0.35); gap: 4px; }
+html[data-theme="minimal"] .nav-item { border-radius: 24px; padding: 8px 4px 7px; font-size: 0.6rem; transition: background 0.25s, color 0.2s; }
+html[data-theme="minimal"] .nav-item.active { background: var(--m-accent-soft); }
+html[data-theme="minimal"] .nav-item.active .nav-icon { transform: none; }
+
+/* Card: leggera luce sul bordo alto */
+html[data-theme="minimal"] .tool-card, html[data-theme="minimal"] .chart-wrap, html[data-theme="minimal"] .save-panel, html[data-theme="minimal"] .frigo-add-form { box-shadow: inset 0 1px 0 #fff, var(--m-shadow); padding: 18px; }
+html[data-theme="minimal"] .tool-card-title { margin-bottom: 8px; }
+html[data-theme="minimal"] .tool-card > p.text-xs { margin-bottom: 14px; line-height: 1.5; }
+
+/* Storico */
+html[data-theme="minimal"] .day-header { padding-bottom: 8px; border-bottom: 1px solid var(--m-line); margin-bottom: 10px; }
+html[data-theme="minimal"] .entry-icon { width: 42px; height: 42px; border-radius: 13px; background: var(--m-soft); display: flex; align-items: center; justify-content: center; font-size: 1.25rem; flex-shrink: 0; }
+html[data-theme="minimal"] .entry-type { font-weight: 600; }
+html[data-theme="minimal"] .chart-stat { padding: 12px 8px; }
+html[data-theme="minimal"] .chart-legend-dot { border-radius: 3px; width: 9px; height: 9px; }
+html[data-theme="minimal"] .chart-stack { border-radius: 5px 5px 0 0; }
+html[data-theme="minimal"] .empty-state { padding: 46px 20px; }
+html[data-theme="minimal"] .empty-icon { width: 72px; height: 72px; border-radius: 50%; background: #fff; border: 1px solid var(--m-line); display: flex; align-items: center; justify-content: center; margin: 0 auto 14px; font-size: 2rem; box-shadow: var(--m-shadow); }
+
+/* Frigo */
+html[data-theme="minimal"] .nf-summary { background: radial-gradient(120% 120% at 0% 0%, #2c2724 0%, #1c1917 60%); padding: 20px; }
+html[data-theme="minimal"] .nf-total-num { font-size: 56px; }
+html[data-theme="minimal"] .nf-total-label { opacity: 0.65; font-size: 13px; letter-spacing: 0.04em; }
+html[data-theme="minimal"] .nf-breakdown > div { padding: 10px 4px; }
+html[data-theme="minimal"] .nf-breakdown b { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.7; font-weight: 600; }
+html[data-theme="minimal"] .nf-batch-card { padding: 14px; }
+html[data-theme="minimal"] .nf-batch-ctrls button, html[data-theme="minimal"] .nf-actions button { transition: transform 0.15s; }
+html[data-theme="minimal"] .nf-batch-ctrls button:active, html[data-theme="minimal"] .nf-actions button:active { transform: scale(0.97); }
+html[data-theme="minimal"] .frigo-stat-card { border-radius: 16px; }
+html[data-theme="minimal"] .frigo-stat-val { font-size: 1.8rem; }
+
+/* Login */
+html[data-theme="minimal"] .sync-card { padding: 36px 28px 28px; }
+html[data-theme="minimal"] .sync-icon { width: 76px; height: 76px; border-radius: 50%; background: var(--m-accent-soft); display: flex; align-items: center; justify-content: center; margin: 0 auto 18px; font-size: 2.2rem; }
+html[data-theme="minimal"] .sync-card h2::before { content: 'Benvenuto'; display: block; font-family: var(--m-sans); font-size: 0.62rem; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; color: var(--m-accent-ink); margin-bottom: 6px; }
+
+/* Selettore tema */
+html[data-theme="minimal"] .theme-opt { transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s; }
+html[data-theme="minimal"] .theme-opt:active { transform: scale(0.98); }
+html[data-theme="minimal"] .theme-preview { height: 70px; }
+
+/* Temperatura */
+html[data-theme="minimal"] .temp-result { padding: 22px; }
+html[data-theme="minimal"] .temp-big { font-size: 2.8rem; letter-spacing: -0.02em; }
 </style>
 </head>
 <body>
@@ -1691,7 +1814,7 @@ function printRecipe() {
 const THEME_KEY = 'pizzalab_theme';
 const THEMES = {
     punk:    { name: 'Punk',    desc: 'Scuro, neon, sfumature viola',           themeColor: '#6366f1' },
-    minimal: { name: 'Minimal', desc: 'Chiaro, carta calda e terracotta',      themeColor: '#f6f3ee' }
+    minimal: { name: 'Minimal', desc: 'Chiaro, editoriale, terracotta',       themeColor: '#f6f3ee' }
 };
 function currentTheme() {
     const t = document.documentElement.getAttribute('data-theme');
