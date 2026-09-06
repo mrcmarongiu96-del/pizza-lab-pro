@@ -6,7 +6,7 @@
 //  2. tutto ciò che serve a far partire l'app sta in cache, così funziona anche
 //     senza rete (font e icone compresi).
 
-const CACHE = 'pizzalab-v12';
+const CACHE = 'pizzalab-v13';
 
 const ASSETS = [
   "./",

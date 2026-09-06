@@ -141,7 +141,7 @@ function seriesColor(i, soft) {
 /* ── 3. FIREBASE E LIVELLO DATI ───────────────────────────────────── */
 
 const firebaseConfig = {
-    apiKey: "AIzaSyBqXvT1MJHXHqRVJvL_kFtVBLKUkzZQqZo",
+    apiKey: "AIzaSyDDnSYqnTO1kwOdImIU8LoEFhyTxx25530",
     authDomain: "pizza-lab-pro.firebaseapp.com",
     projectId: "pizza-lab-pro",
     storageBucket: "pizza-lab-pro.firebasestorage.app",
@@ -1917,9 +1917,16 @@ function resetEmailPassword() {
     }).catch((e) => { err.textContent = e.message; err.classList.remove('hidden'); });
 }
 
+function loginError(message) {
+    const err = $('login-err');
+    err.textContent = message;
+    err.classList.remove('hidden');
+}
+
 function signInWithGoogle() {
     const btn = $('btn-google');
     btn.textContent = 'Accesso in corso...'; btn.disabled = true;
+    $('login-err').classList.add('hidden');
     const provider = new firebase.auth.GoogleAuthProvider();
     FB.auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(() => {});
     FB.auth.signInWithPopup(provider).catch((err) => {
@@ -1927,10 +1934,10 @@ function signInWithGoogle() {
         if (!err || !err.code) return;
         if (['auth/popup-closed-by-user', 'auth/cancelled-popup-request'].includes(err.code)) return;
         if (['auth/popup-blocked', 'auth/operation-not-supported-in-this-environment', 'auth/web-storage-unsupported'].includes(err.code)) {
-            FB.auth.signInWithRedirect(provider).catch((e) => alert('Errore login: ' + e.message));
+            FB.auth.signInWithRedirect(provider).catch((e) => loginError('Accesso non riuscito: ' + e.message));
             return;
         }
-        alert('Errore login: ' + err.message);
+        loginError('Accesso non riuscito: ' + err.message);
     });
 }
 
@@ -2044,7 +2051,17 @@ function boot() {
     $$('.nav-item').forEach((el) => { el.onclick = () => showSection(el.dataset.section); });
     $('history-search').oninput = function () { historyQuery = this.value; renderStorico(); };
 
-    if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('./sw.js').catch(() => {});
+        // Quando una versione nuova prende il controllo ricarico una volta sola,
+        // così l'aggiornamento arriva senza chiedere un refresh forzato
+        let reloading = false;
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+            if (reloading) return;
+            reloading = true;
+            location.reload();
+        });
+    }
 
     if (!FB) {
         // L'SDK non si è caricato: probabilmente siamo offline
@@ -2053,13 +2070,31 @@ function boot() {
         return;
     }
 
+    let authResolved = false;
     FB.auth.onAuthStateChanged((user) => {
+        authResolved = true;
         if (user) startCloudMode(user);
         else { Store.stop(); showLoginCard(); }
+    }, (err) => {
+        authResolved = true;
+        showLoginCard();
+        loginError('Il server di accesso non risponde: ' + (err && err.message ? err.message : 'errore sconosciuto'));
     });
 
+    // Se l'autenticazione non risponde entro pochi secondi mostro comunque i pulsanti:
+    // meglio una schermata usabile che un "Caricamento" infinito
+    setTimeout(() => {
+        if (authResolved) return;
+        showLoginCard();
+        loginError('Il server di accesso non risponde. Controlla la connessione e riprova, oppure usa l\'app senza account.');
+    }, 7000);
+
     FB.auth.getRedirectResult().catch((err) => {
-        if (err && err.code) console.warn('Redirect login:', err.code);
+        if (err && err.code) {
+            console.warn('Redirect login:', err.code);
+            showLoginCard();
+            loginError('Accesso non riuscito: ' + err.message);
+        }
     });
 }
 
