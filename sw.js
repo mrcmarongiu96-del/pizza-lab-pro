@@ -1,71 +1,98 @@
-// Service Worker per Pizza Lab Pro — versione corretta
-// Regola d'oro: il SW gestisce SOLO i file della nostra app.
-// Tutto quello che è di Google/Firebase/CDN esterni passa DRITTO alla rete,
-// altrimenti rompe il login e le chiamate in tempo reale.
+// Service Worker di Pizza Lab Pro.
+//
+// Due regole d'oro:
+//  1. tutto ciò che è di Google/Firebase passa DRITTO alla rete, senza intercetti,
+//     altrimenti si rompono login e sincronizzazione in tempo reale;
+//  2. tutto ciò che serve a far partire l'app sta in cache, così funziona anche
+//     senza rete (font e icone compresi).
 
-const CACHE_NAME = 'pizzalab-v11';
-const LOCAL_FILES = ['./', './index.html', './manifest.json', './icon.svg'];
+const CACHE = 'pizzalab-v12';
 
-// Installazione: precarica i file locali
-self.addEventListener('install', event => {
+const ASSETS = [
+  "./",
+  "./index.html",
+  "./styles.css",
+  "./fonts.css",
+  "./app.js",
+  "./manifest.json",
+  "./icon.svg",
+  "./icons/apple-touch-icon.png",
+  "./icons/icon-192.png",
+  "./icons/icon-512.png",
+  "./icons/icon-maskable-512.png",
+  "./fonts/Fraunces-6NU78FyLNQOQZAnv9bYEvDiIdE9Ea92uemAk_WBq8U_9v0c2Wa0KxC9TeP2Xz5c.woff2",
+  "./fonts/Fraunces-6NU78FyLNQOQZAnv9bYEvDiIdE9Ea92uemAk_WBq8U_9v0c2Wa0KxCFTeP2Xz5fU8w.woff2",
+  "./fonts/Inter-UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+  "./fonts/Inter-UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa25L7W0Q5n-wU.woff2",
+  "./fonts/Poppins-pxiByp8kv8JHgFVrLCz7Z1JlFd2JQEl8qw.woff2",
+  "./fonts/Poppins-pxiByp8kv8JHgFVrLCz7Z1xlFd2JQEk.woff2",
+  "./fonts/Poppins-pxiByp8kv8JHgFVrLDz8Z1JlFd2JQEl8qw.woff2",
+  "./fonts/Poppins-pxiByp8kv8JHgFVrLDz8Z1xlFd2JQEk.woff2",
+  "./fonts/Poppins-pxiByp8kv8JHgFVrLEj6Z1JlFd2JQEl8qw.woff2",
+  "./fonts/Poppins-pxiByp8kv8JHgFVrLEj6Z1xlFd2JQEk.woff2",
+  "./fonts/Poppins-pxiEyp8kv8JHgFVrJJfecnFHGPc.woff2",
+  "./fonts/Poppins-pxiEyp8kv8JHgFVrJJnecnFHGPezSQ.woff2",
+  "./fonts/SpaceGrotesk-V8mDoQDjQSkFtoMM3T6r8E7mPb94C_k3HqUtEw.woff2",
+  "./fonts/SpaceGrotesk-V8mDoQDjQSkFtoMM3T6r8E7mPbF4C_k3HqU.woff2"
+];
+
+self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => cache.addAll(LOCAL_FILES))
+    caches.open(CACHE).then((cache) =>
+      // addAll fallisce tutto se un solo file manca: li aggiungo uno a uno
+      Promise.all(ASSETS.map((url) => cache.add(url).catch((e) => console.warn('[SW] salto', url, e))))
+    )
   );
   self.skipWaiting();
 });
 
-// Attivazione: pulisci le cache vecchie
-self.addEventListener('activate', event => {
+self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
-    )
+    caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
   );
   self.clients.claim();
 });
 
-// Fetch: comportamento diverso a seconda dell'origine
-self.addEventListener('fetch', event => {
+self.addEventListener('fetch', (event) => {
   const req = event.request;
+  if (req.method !== 'GET') return;
+
   const url = new URL(req.url);
+  if (url.origin !== self.location.origin) return; // Firebase, Google, CDN: mai toccati
 
-  // 1) Richieste NON GET (POST/PUT/DELETE): lasciamo passare senza toccare.
-  //    Firebase Auth e Firestore usano spesso POST.
-  if (req.method !== 'GET') {
-    return;
-  }
-
-  // 2) Richieste cross-origin (googleapis, gstatic, tailwindcss, firebaseapp.com,
-  //    accounts.google.com, ecc.): LASCIAMO PASSARE, zero cache, zero intercetti.
-  //    Questa è la riga più importante del file: tenere il SW lontano da Firebase.
-  if (url.origin !== self.location.origin) {
-    return;
-  }
-
-  // 3) Da qui in giù: solo richieste sullo stesso dominio della nostra app.
-  const isHTML =
-    req.destination === 'document' ||
-    url.pathname.endsWith('.html') ||
-    url.pathname.endsWith('/');
+  const isHTML = req.mode === 'navigate' || req.destination === 'document' ||
+                 url.pathname.endsWith('.html') || url.pathname.endsWith('/');
 
   if (isHTML) {
-    // HTML: prima la rete (per avere sempre l'ultima versione), cache come fallback offline.
+    // Pagina: prima la rete per avere sempre l'ultima versione, cache come rete di sicurezza
     event.respondWith(
       fetch(req)
-        .then(response => {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put(req, clone));
-          return response;
+        .then((res) => {
+          const copy = res.clone();
+          caches.open(CACHE).then((c) => c.put(req, copy));
+          return res;
         })
-        .catch(() =>
-          caches.match(req).then(c => c || caches.match('./index.html'))
-        )
+        .catch(() => caches.match(req).then((c) => c || caches.match('./index.html')))
     );
-  } else {
-    // Asset locali (icon.svg, manifest.json): prima la cache, poi la rete.
-    // IMPORTANTE: se la rete fallisce NON rispondiamo con index.html — quello era il bug.
-    event.respondWith(
-      caches.match(req).then(cached => cached || fetch(req))
-    );
+    return;
   }
+
+  const isCode = url.pathname.endsWith('.css') || url.pathname.endsWith('.js');
+  if (isCode) {
+    // Codice: rispondo subito dalla cache e intanto scarico la versione nuova
+    event.respondWith(
+      caches.match(req).then((cached) => {
+        const network = fetch(req).then((res) => {
+          const copy = res.clone();
+          caches.open(CACHE).then((c) => c.put(req, copy));
+          return res;
+        }).catch(() => cached);
+        return cached || network;
+      })
+    );
+    return;
+  }
+
+  // Font, icone, manifest: non cambiano mai, prima la cache
+  event.respondWith(caches.match(req).then((cached) => cached || fetch(req)));
 });
