@@ -235,6 +235,7 @@ const Store = {
     },
     stop() {
         this.epoch++; this.ready = false;
+        if (typeof selectedPreset !== 'undefined') { selectedPreset = null; closePresetLibrary(); }
         this.unsubs.forEach(u => { try { u(); } catch (e) {} }); this.unsubs = [];
         this.cache = { history: [], batches: [], frigoLog: [] }; this.docCache = {};
         if (typeof clearResults === 'function') clearResults();
@@ -591,12 +592,12 @@ async function saveRecipeEditor() {
 async function deleteRecipe(id) {
     if (!requireWritable()) return;
     const r = getRecipe(id);
-    if (!r || !confirm(`Eliminare "${r.name}"? Storico e lotti rimangono consultabili.`)) return;
+    if (!r || !confirm(`Eliminare "${r.name}"? Storico, lotti e preset rimangono conservati.`)) return;
     try {
         await Store.atomic(['data/recipes', 'data/presets'], values => {
             const list = values['data/recipes']?.list || [];
             if (list.length <= 1) throw new Error('Deve restare almeno un impasto.');
-            const presets = { ...(values['data/presets'] || {}) }; delete presets[id];
+            const presets = { ...(values['data/presets'] || {}) }; // Preserve saved and trashed presets for archived recipes.
             return { 'data/recipes': { list: list.filter(x => x.id !== id) }, 'data/presets': presets };
         });
         recipes = recipes.filter(x => x.id !== id); currentRecipeId = recipes[0].id;
@@ -639,6 +640,7 @@ function renderRecipeTabs() {
 
 function switchRecipe(id) {
     replayRecipe = null;
+    selectedPreset = null;
     currentRecipeId = id;
     clearResults();
     renderRecipeTabs();
@@ -661,7 +663,7 @@ function renderRecipeForm() {
 
     el.innerHTML = `
         ${replayRecipe ? `<p class="card-note">Dosi originali della produzione del ${esc(replayRecipe.originalDate)}.</p>` : ''}
-        <div id="preset-bar" class="chip-bar no-print"></div>
+        <div id="preset-bar" class="preset-bar no-print"></div>
         <div class="field-row">${fields}</div>
 
         <div class="target-field">
@@ -716,6 +718,7 @@ function clearResults() {
     $('save-panel').classList.add('hidden');
     lastCalc = null;
     pendingProduction = null;
+    if (typeof selectedPreset !== 'undefined') renderPresetBar();
 }
 
 function calculate() {
@@ -1440,63 +1443,7 @@ function calcTemp() {
 
 /* — Preset — */
 
-function renderPresetBar() {
-    const el = $('preset-bar');
-    if (!el) return;
-    const list = presets[currentRecipeId] || [];
-    el.innerHTML = list.map((p, i) => `<span class="chip" onclick="applyPreset(${i})">
-        ${esc(p.name)}<span class="chip-x" onclick="event.stopPropagation();deletePreset(${i})">✕</span></span>`).join('');
-}
-
-async function savePreset() {
-    if (!requireWritable()) return;
-    const name = prompt('Nome del preset:'); if (!name?.trim()) return;
-    try {
-        const qty = Object.fromEntries(readFormQuantities().map(i => [i.id, i.qty]));
-        const rid = currentRecipeId, p = { id: uid(), name: name.trim(), qty };
-        await Store.updateDoc('presets', doc => ({ ...doc, [rid]: [...(doc?.[rid] || []), p] }));
-        loadPresets(); renderPresetBar(); renderAllPresets(); toast('Preset salvato');
-    } catch (e) { toast(e.message); }
-}
-
-function applyPreset(i) {
-    const p = (presets[currentRecipeId] || [])[i];
-    if (!p) return;
-    Object.keys(p.qty).forEach((ingId) => {
-        const f = $('ing-' + ingId);
-        if (f) f.value = p.qty[ingId];
-    });
-    clearResults(); toast(`Preset "${p.name}" applicato`);
-}
-
-async function deletePreset(i) { await deletePresetFrom(currentRecipeId, i);
-}
-
-function renderAllPresets() {
-    const el = $('all-presets');
-    if (!el) return;
-    const all = [];
-    Object.keys(presets).forEach((rid) => {
-        const r = getRecipe(rid);
-        (presets[rid] || []).forEach((p, i) => all.push({ recipe: r ? r.name : rid, icon: r ? r.icon : '🍞', rid, i, name: p.name }));
-    });
-    if (!all.length) { el.innerHTML = '<p class="card-note" style="margin:0">Nessun preset. Vai su un impasto e premi "Salva preset".</p>'; return; }
-    el.innerHTML = all.map((p) => `<div class="recipe-row">
-        <span class="recipe-row-icon">${esc(p.icon)}</span>
-        <div class="recipe-row-main"><div class="recipe-row-name">${esc(p.name)}</div><div class="recipe-row-meta">${esc(p.recipe)}</div></div>
-        <button class="btn btn-icon" onclick="deletePresetFrom('${esc(p.rid)}',${p.i})">✕</button>
-    </div>`).join('');
-}
-
-async function deletePresetFrom(rid, i) {
-    if (!requireWritable()) return;
-    const selected = (Store.getDoc('presets')?.[rid] || [])[i];
-    if (!selected || !confirm(`Eliminare il preset "${selected.name}"?`)) return;
-    try {
-        await Store.updateDoc('presets', doc => ({ ...doc, [rid]: (doc?.[rid] || []).filter(p => selected.id ? p.id !== selected.id : JSON.stringify(p) !== JSON.stringify(selected)) }));
-        loadPresets(); renderPresetBar(); renderAllPresets();
-    } catch (e) { toast(e.message); }
-}
+// Preset library and compatibility handlers are in presets.js.
 
 /* — Backup — */
 

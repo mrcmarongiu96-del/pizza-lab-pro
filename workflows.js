@@ -37,7 +37,7 @@ function dataDocsChanged(name) {
         if (previous !== JSON.stringify(recipes)) { renderRecipeTabs(); if (!$('section-strumenti').classList.contains('hidden')) renderRecipeList(); }
     }
     loadPresets(); loadPrices();
-    if (!name || name === 'presets') { renderPresetBar(); if (!$('section-strumenti').classList.contains('hidden')) renderAllPresets(); }
+    if (!name || name === 'presets') { renderPresetBar(); refreshPresetLibrary(); if (!$('section-strumenti').classList.contains('hidden')) renderAllPresets(); }
     if (lastCalc && (!name || name === 'prices')) renderResults();
     if (!$('section-magazzino').classList.contains('hidden') && !$('inventory-body').contains(document.activeElement)) renderInventory();
     if (!$('section-piano').classList.contains('hidden')) {

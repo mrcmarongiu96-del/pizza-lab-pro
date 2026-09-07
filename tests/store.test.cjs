@@ -11,10 +11,10 @@ function app(storage = new Map()) {
         localStorage: { getItem: k => storage.get(k) ?? null, setItem: (k, v) => storage.set(k, v), removeItem: k => storage.delete(k) },
         alert: message => { ctx.lastAlert = message; }, confirm: () => true,
         document: { readyState: 'loading', activeElement: null, addEventListener: (k, v) => events[k] = v, querySelectorAll: () => [],
-            getElementById: id => elements[id] ||= { value: '', disabled: false, textContent: '', innerHTML: '', contains: () => false, classList: { add() {}, remove() {}, contains: () => true, toggle() {} }, scrollIntoView() {} }
+            getElementById: id => elements[id] ||= { value: '', disabled: false, textContent: '', innerHTML: '', contains: () => false, close() {}, classList: { add() {}, remove() {}, contains: () => true, toggle() {} }, scrollIntoView() {} }
         }
     });
-    for (const f of ['domain.js', 'app.js', 'workflows.js']) vm.runInContext(fs.readFileSync(require('node:path').join(__dirname, '..', f), 'utf8'), ctx);
+    for (const f of ['domain.js', 'app.js', 'workflows.js', 'presets.js']) vm.runInContext(fs.readFileSync(require('node:path').join(__dirname, '..', f), 'utf8'), ctx);
     vm.runInContext(`toast = (message) => { globalThis.lastToast = message; }; openFrigoLog = renderRecipeForm = renderRecipeTabs = renderResults = renderRecipeList = renderPriceEditor = renderAllPresets = renderPresetBar = renderStorico = renderCharts = renderFrigo = renderInventory = renderPlanResults = renderPlanForm = () => {};`, ctx);
     ctx.run = code => vm.runInContext(code, ctx);
     return ctx;
