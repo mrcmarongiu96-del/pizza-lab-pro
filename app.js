@@ -15,6 +15,10 @@
     11  Strumenti (temperatura, preset, prezzi, backup, tema, account)
     12  Condivisione immagine
     13  Navigazione e avvio
+
+   La forma dei documenti salvati, le chiavi di localStorage e le trappole
+   note sono descritte nel README: leggilo prima di cambiare il modello dati,
+   perché in produzione ci sono dati con la forma attuale.
    ═══════════════════════════════════════════════════════════════════════ */
 'use strict';
 
@@ -161,6 +165,9 @@ try {
     FB = null;
 }
 
+/* Collezioni con molti documenti (una scrittura per elemento) e documenti
+   singoli che contengono un oggetto intero. Su Firestore diventano
+   users/{uid}/{collezione}/{id} e users/{uid}/data/{documento}. */
 const COLLECTIONS = ['history', 'batches'];
 const DOCS = ['recipes', 'presets', 'prices'];
 const MIRROR_PREFIX = 'pizzalab_mirror_';
@@ -338,6 +345,9 @@ function setSyncStatus(state) {
 
 /* ── 4. RICETTE CONFIGURABILI ─────────────────────────────────────── */
 
+/* Impasti creati la prima volta che un account apre l'app. Da lì in poi le
+   ricette vivono nei dati dell'utente e si modificano da Strumenti: cambiare
+   questa costante non ha effetto su chi ha già usato l'app. */
 const DEFAULT_RECIPES = [
     {
         id: 'solina', name: 'Solina', icon: '🌾', ballWeight: 290,
@@ -373,7 +383,10 @@ const DEFAULT_RECIPES = [
     }
 ];
 
-/* Campi dei preset salvati dalla versione precedente, per non perderli. */
+/* Campi dei preset salvati dalla versione precedente, quando i valori erano
+   indicizzati per id del campo HTML invece che per id dell'ingrediente.
+   loadPresets() li converte al volo: non rimuovere questa mappa, ci sono
+   ancora preset salvati nel vecchio formato. */
 const LEGACY_PRESET_FIELDS = {
     solina: { 'solina-kg': 'solina', 'caputo-kg': 'caputo', 'acqua-kg': 'acqua', 'sale-g': 'sale', 'lievito-g': 'lievito' },
     farro:  { 'farro-kg': 'farro', 'solina-farro-kg': 'solina', 'caputo-farro-kg': 'caputo', 'acqua-farro-kg': 'acqua', 'sale-farro-g': 'sale', 'lievito-farro-g': 'lievito' },

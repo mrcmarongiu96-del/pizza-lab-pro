@@ -6,6 +6,9 @@
 //  2. tutto ciò che serve a far partire l'app sta in cache, così funziona anche
 //     senza rete (font e icone compresi).
 
+// Alza questo numero a ogni modifica di app.js o styles.css: senza il cambio
+// di versione i dispositivi già installati continuano a usare la copia in
+// cache. Al cambio, l'app si ricarica una volta da sola (vedi boot() in app.js).
 const CACHE = 'pizzalab-v13';
 
 const ASSETS = [
