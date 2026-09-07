@@ -167,3 +167,20 @@ npm run test:browser
 
 Il test include l'avvio della PWA offline. Per usare un Chrome già installato,
 impostare `PLAYWRIGHT_CHROMIUM_EXECUTABLE` al percorso dell'eseguibile.
+
+## Libreria preset (v15)
+
+Nella ricetta compare un solo selettore, con conteggio e nome del preset applicato.
+La libreria contiene ricerca per nome/impasto, filtro per ricetta, anteprima delle
+dosi e applicazione. La lista mostra 30 risultati alla volta senza allungare il
+calcolatore; la ricerca considera sempre tutti i preset. Strumenti apre la stessa
+libreria invece di duplicare l'intero elenco.
+
+“Gestisci” permette di rinominare e di spostare un preset nel Cestino, con un
+passaggio di conferma separato e “Mantieni preset” come azione inizialmente focalizzata.
+La scheda Cestino consente il ripristino; non ci sono eliminazione definitiva né
+svuotamento automatico. `deletedAt` rimane insieme alle dosi nel documento preset e
+nel backup. I preset legacy ottengono identificativi stabili al primo aggiornamento,
+con distinzione anche per preset omonimi. Se gli ingredienti della ricetta sono
+cambiati, l'anteprima spiega quali dosi verranno ignorate o riportate ai valori base
+prima dell'applicazione. Tutta la UI e il modello dedicato sono in `presets.js`.

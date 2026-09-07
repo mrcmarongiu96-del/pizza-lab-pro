@@ -9,7 +9,7 @@
 // Alza questo numero a ogni modifica di app.js o styles.css: senza il cambio
 // di versione i dispositivi già installati continuano a usare la copia in
 // cache. Al cambio, l'app si ricarica una volta da sola (vedi boot() in app.js).
-const CACHE = 'pizzalab-pro-v14';
+const CACHE = 'pizzalab-pro-v15';
 
 const ASSETS = [
   "./",
@@ -19,6 +19,7 @@ const ASSETS = [
   "./app.js",
   "./domain.js",
   "./workflows.js",
+  "./presets.js",
   "./manifest.json",
   "./icon.svg",
   "./icons/apple-touch-icon.png",

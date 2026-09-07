@@ -134,7 +134,7 @@ const Lab = (() => {
         validatePrices(data.prices);
         for (const [rid, list] of Object.entries(data.presets)) {
             id(rid); if (!Array.isArray(list)) throw new Error('Preset non validi.');
-            list.forEach(p => { text(p.name, 'Preset', 100); if (p.id) id(p.id); const values = p.qty || p.vals; if (!values || typeof values !== 'object' || Array.isArray(values)) throw new Error('Dosi preset non valide.'); for (const [k, v] of Object.entries(values)) { id(k); storedNumber(v, 'Dose preset', 0, 100000); } });
+            list.forEach(p => { text(p.name, 'Preset', 100); if (p.id) id(p.id); if (p.deletedAt) iso(p.deletedAt); if (p.createdAt) iso(p.createdAt); const values = p.qty || p.vals; if (!values || typeof values !== 'object' || Array.isArray(values)) throw new Error('Dosi preset non valide.'); for (const [k, v] of Object.entries(values)) { id(k); storedNumber(v, 'Dose preset', 0, 100000); } });
         }
         if (!data.inventory.items || typeof data.inventory.items !== 'object' || Array.isArray(data.inventory.items)) throw new Error('Magazzino non valido.');
         for (const [k, v] of Object.entries(data.inventory.items)) { id(k); storedNumber(v.kg, 'Scorta', 0); storedNumber(v.minKg || 0, 'Soglia', 0); text(v.name || k, 'Ingrediente', 100); }

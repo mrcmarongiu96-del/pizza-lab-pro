@@ -65,3 +65,8 @@ test('backup rejects numeric strings rather than introducing concatenated counts
  const b=backup(); b.history=[{id:1,date:'2026-09-07',type:'Test',palline:'10',ballWeight:250}];
  assert.throws(()=>Lab.backup(b));
 });
+test('backup preserves trashed presets and rejects an invalid trash timestamp',()=>{
+ const data=backup();data.presets={r:[{id:'saved',name:'Da recuperare',qty:{farina:1},deletedAt:'2026-09-07T12:00:00Z'}]};
+ assert.equal(Lab.backup(data).presets.r[0].deletedAt,'2026-09-07T12:00:00Z');
+ data.presets.r[0].deletedAt='invalid';assert.throws(()=>Lab.backup(data));
+});
