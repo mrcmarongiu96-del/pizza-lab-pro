@@ -9,7 +9,7 @@
 // Alza questo numero a ogni modifica di app.js o styles.css: senza il cambio
 // di versione i dispositivi già installati continuano a usare la copia in
 // cache. Al cambio, l'app si ricarica una volta da sola (vedi boot() in app.js).
-const CACHE = 'pizzalab-v13';
+const CACHE = 'pizzalab-pro-v14';
 
 const ASSETS = [
   "./",
@@ -17,6 +17,8 @@ const ASSETS = [
   "./styles.css",
   "./fonts.css",
   "./app.js",
+  "./domain.js",
+  "./workflows.js",
   "./manifest.json",
   "./icon.svg",
   "./icons/apple-touch-icon.png",
@@ -39,63 +41,26 @@ const ASSETS = [
   "./fonts/SpaceGrotesk-V8mDoQDjQSkFtoMM3T6r8E7mPbF4C_k3HqU.woff2"
 ];
 
-self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE).then((cache) =>
-      // addAll fallisce tutto se un solo file manca: li aggiungo uno a uno
-      Promise.all(ASSETS.map((url) => cache.add(url).catch((e) => console.warn('[SW] salto', url, e))))
-    )
-  );
-  self.skipWaiting();
+self.addEventListener('install', event => {
+  // A release is available offline only when its complete shell was downloaded.
+  event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS)));
 });
-
-self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
-  );
-  self.clients.claim();
+self.addEventListener('message', event => {
+  if (event.data?.type === 'ACTIVATE_UPDATE') self.skipWaiting();
 });
-
-self.addEventListener('fetch', (event) => {
-  const req = event.request;
-  if (req.method !== 'GET') return;
-
-  const url = new URL(req.url);
-  if (url.origin !== self.location.origin) return; // Firebase, Google, CDN: mai toccati
-
-  const isHTML = req.mode === 'navigate' || req.destination === 'document' ||
-                 url.pathname.endsWith('.html') || url.pathname.endsWith('/');
-
-  if (isHTML) {
-    // Pagina: prima la rete per avere sempre l'ultima versione, cache come rete di sicurezza
-    event.respondWith(
-      fetch(req)
-        .then((res) => {
-          const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put(req, copy));
-          return res;
-        })
-        .catch(() => caches.match(req).then((c) => c || caches.match('./index.html')))
-    );
-    return;
-  }
-
-  const isCode = url.pathname.endsWith('.css') || url.pathname.endsWith('.js');
-  if (isCode) {
-    // Codice: rispondo subito dalla cache e intanto scarico la versione nuova
-    event.respondWith(
-      caches.match(req).then((cached) => {
-        const network = fetch(req).then((res) => {
-          const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put(req, copy));
-          return res;
-        }).catch(() => cached);
-        return cached || network;
-      })
-    );
-    return;
-  }
-
-  // Font, icone, manifest: non cambiano mai, prima la cache
-  event.respondWith(caches.match(req).then((cached) => cached || fetch(req)));
+self.addEventListener('activate', event => {
+  event.waitUntil(caches.keys().then(keys => Promise.all(keys
+    .filter(k => (k.startsWith('pizzalab-pro-') || /^pizzalab-v\d+$/.test(k)) && k !== CACHE)
+    .map(k => caches.delete(k)))).then(() => self.clients.claim()));
+});
+self.addEventListener('fetch', event => {
+  const req = event.request, url = new URL(req.url);
+  if (req.method !== 'GET' || url.origin !== self.location.origin || !url.href.startsWith(self.registration.scope)) return;
+  // All shell files come from the same installed release, never mixed versions.
+  event.respondWith(caches.open(CACHE).then(async cache => {
+    const hit = await cache.match(req, { ignoreSearch: true });
+    if (hit) return hit;
+    if (req.mode === 'navigate') return (await cache.match('./index.html')) || fetch(req);
+    return fetch(req);
+  }));
 });

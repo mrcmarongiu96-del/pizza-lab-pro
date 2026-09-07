@@ -1,176 +1,169 @@
 # Pizza Lab Pro
 
-App web per il banco di una pizzeria: calcola le dosi di un impasto a partire
-dal numero di palline, permette di spuntare gli ingredienti mentre si pesa,
-tiene il conto delle palline in frigo e registra lo storico delle produzioni.
+App per il banco di una pizzeria: dosi scalabili, checklist, produzioni, lotti in
+frigo, piano del servizio, magazzino ingredienti e lista acquisti.
 
 **Online:** https://mrcmarongiu96-del.github.io/pizza-lab-pro/
 
-Non c'è nulla da compilare: è HTML, CSS e JavaScript serviti così come sono.
+HTML, CSS e JavaScript senza compilazione e senza dipendenze di runtime locali.
+Firebase Auth e Firestore sono caricati dal CDN già utilizzato dal progetto.
 
----
-
-## Far girare il progetto
-
-Serve un server statico qualsiasi, perché il service worker e i moduli non
-funzionano aprendo il file dal disco (`file://`).
+## Avvio e verifiche
 
 ```bash
 python3 -m http.server 8765
+npm run check
+npm test
 ```
 
-Poi apri http://127.0.0.1:8765. Per provare senza toccare i dati veri, usa il
-pulsante **"Usa senza account"**: l'app lavora su `localStorage` e non parla
-con Firebase.
+Apri http://127.0.0.1:8765 e scegli **Usa senza account** per provare con dati
+locali, separati dai dati Firebase. I test richiedono Node 22 o successivo e non
+contattano servizi esterni. GitHub Actions esegue sintassi e regressioni.
 
-**Pubblicazione:** GitHub Pages sul ramo `main`, cartella radice. Un push su
-`main` aggiorna il sito nel giro di un minuto.
+GitHub Pages pubblica `main`, cartella radice. Il ramo di lavoro non cambia il
+sito pubblico finché non viene integrato in `main`.
 
----
+## Funzioni
 
-## Struttura dei file
+- **Ricette:** proporzioni dirette/inverse, ingredienti in kg/g, checklist,
+  preset e costi/calorie con segnalazione separata dei valori mancanti.
+- **Salva produzione:** conserva dosi, idratazione, peso, prezzi del momento,
+  note e legame al lotto. Produzione, lotto, movimento e scarico ingredienti
+  vengono salvati insieme, con un identificativo riutilizzato in caso di retry.
+- **Frigo:** lotti ordinati per fine finestra d'uso; date di produzione,
+  ingresso in frigo e intervallo d'uso configurabili. Consumi rapidi, scarti,
+  rettifiche e annullamento dei movimenti. Le palline aggiunte a un lotto
+  ereditano la data di quel lotto: una nuova produzione deve essere un nuovo lotto.
+- **Storico:** scheda con dosi originali e ripetizione, anche dopo modifica o
+  eliminazione della ricetta. Le produzioni precedenti non hanno una scheda
+  ingredienti ricostruibile: l'app non inventa i dati mancanti.
+- **Piano:** obiettivo per impasto, data e ora del servizio; sottrae solo le
+  palline attualmente disponibili e nella finestra d'uso a quell'ora. Non
+  prevede consumi futuri. I lotti legacy senza date sono inclusi e segnalati.
+- **Scorte:** monitoraggio facoltativo per ingrediente, carichi e rettifiche
+  incrementali, scorta minima, scarico dalla produzione. Il salvataggio viene
+  bloccato se un ingrediente monitorato è insufficiente. L'aggiunta manuale di
+  un lotto non scarica ingredienti. La lista acquisti copre il piano selezionato
+  e riporta gli ingredienti monitorati alla scorta minima.
+- **Backup v2:** ricette, preset, prezzi, produzioni, lotti, tutti i movimenti,
+  magazzino e piani. Importa anche v1, validando l'intero file prima di scrivere.
 
-| File | Contenuto |
+## Struttura
+
+| File | Responsabilità |
 |---|---|
-| `index.html` | Solo markup. Nessuna logica, a parte tre righe che applicano il tema salvato prima del disegno per evitare il lampeggio. |
-| `styles.css` | Token di design dei tre temi, poi i componenti. Vedi *Aggiungere un tema*. |
-| `app.js` | Tutta la logica, divisa in 13 sezioni numerate elencate in cima al file. |
-| `sw.js` | Service worker: precarica i 25 file dell'app per il funzionamento offline. |
-| `fonts.css` + `fonts/` | Font ospitati in locale, così l'app resta leggibile senza rete. |
-| `icons/` | Icone PNG generate; `icon.svg` è la sorgente. |
+| `domain.js` | Calcoli, validazione, pianificazione, movimenti e dosi/costi puri |
+| `app.js` | Store, UI originale, storico, grafici, accesso, avvio |
+| `workflows.js` | Piano, magazzino, lotti, annullamenti, schede produzione |
+| `index.html`, `styles.css` | Interfaccia e temi esistenti |
+| `sw.js` | Cache versionata dell'intera app |
+| `tests/*.test.cjs` | Regressioni pure e Store con simulatori isolati |
 
----
+## Compatibilità dei dati
 
-## Modello dati
-
-**Questa è la parte da leggere prima di modificare qualcosa.** Ci sono dati di
-produzione con questa forma: cambiarla senza migrazione li rende illeggibili.
-
-### Firestore
+Le collezioni esistenti rimangono nelle stesse posizioni:
 
 ```
-users/{uid}/history/{id}          un impasto registrato
-users/{uid}/batches/{id}          un lotto di palline in frigo
-users/{uid}/frigoLog/{autoId}     movimenti del frigo (solo cronologia)
-users/{uid}/data/recipes          { list: [Ricetta, ...] }
-users/{uid}/data/presets          { recipeId: [{ name, qty: {ingredientId: numero} }] }
-users/{uid}/data/prices           { items: { ingredientId: { cal, prezzo } } }
+users/{uid}/history/{id}
+users/{uid}/batches/{id}
+users/{uid}/frigoLog/{id}
+users/{uid}/data/recipes       { list: [Ricetta, ...] }
+users/{uid}/data/presets       { recipeId: [Preset, ...] }
+users/{uid}/data/prices        { items: { ingredientId: {cal?, prezzo?} } }
+users/{uid}/data/inventory     { items: { ingredientId: {name, tracked, kg, minKg} } }
+users/{uid}/data/plans         { YYYY-MM-DD: {at, targets: {recipeId: palline}} }
+users/{uid}/data/_revision     { value: numero }
 ```
 
-**Impasto** (`history`) — `id` è il timestamp di creazione e fa da chiave:
+I documenti di produzione mantengono il vecchio `id` numerico. Le nuove
+produzioni aggiungono `batchId`, `snapshot` e `inventoryUsed`. Le quantità di
+una produzione collegata al lotto sono immutabili: le rettifiche si registrano
+nel Frigo; si possono modificare le note. Eliminare una scheda storico non
+annulla le palline o restituisce ingredienti già impastati.
 
-```js
-{ id: 1788696859621, date: '2026-09-06', time: '14:14', type: 'Solina',
-  recipeId: 'solina', palline: 55, ballWeight: 290, cassetti: 0, note: '' }
+I nuovi lotti salvano `recipeId`, `historyId` se presente, `fridgeAt`, `readyAt`
+e `useBy`, oltre ai campi precedenti. Le palline mantengono gli stati
+`in_frigo`/`consumata` e aggiungono `scartata`/`rettificata`, `operationId` e
+`movementKind`. Il consumo è tracciato dall'evento, non dedotto dalla produzione.
+I log nuovi hanno `schemaVersion: 2`; quelli annullati hanno `undoneAt`.
+Per i dati vecchi si usano le palline consumate con `consumedAt`, evitando il
+doppio conteggio con i log legacy, che potevano essere parziali.
+
+Le ricette hanno un id stabile. Alla rinomina conservano `aliases` con i nomi
+precedenti per riconoscere i lotti vecchi senza `recipeId`. I nomi ambigui non
+vengono associati automaticamente. I preset v1 per campo HTML continuano a
+essere letti attraverso `LEGACY_PRESET_FIELDS`.
+
+La vecchia migrazione automatica dal nodo condiviso è stata rimossa: non si
+copia lo stesso archivio su ogni account. Per dati ancora nel vecchio archivio
+usare un export/import esplicito.
+
+## Salvataggi, sincronizzazione e offline
+
+Ogni scrittura passa da `Store.atomic()` o `Store.updateDoc()`:
+
+- **Cloud:** transazioni Firestore su documenti correnti. Le modifiche a lotti,
+  ricette, prezzi e preset leggono i valori aggiornati, anziché sovrascrivere
+  un'intera copia locale obsoleta. `_revision` coordina ripristini/cancellazioni
+  con gli altri dispositivi. Non scrivere direttamente con `.set()` fuori da Store.
+- **Senza account:** un unico documento JSON in `pizzalab_local_state_v2`, scritto
+  prima di aggiornare la memoria. Le vecchie chiavi `pizzalab_local_*` sono lette
+  al primo uso e conservate. Web Locks coordina le schede quando disponibile;
+  l'evento `storage` aggiorna le altre schede.
+- **Offline con account:** calcoli e consultazione continuano; le transazioni
+  richiedono rete e non vengono presentate come salvataggi riusciti offline.
+  Se l'SDK non si carica si legge lo specchio dell'ultimo account in sola lettura.
+- **Specchio:** `pizzalab_mirror_v2_{uid}_{nome}`. La modalità locale non lo
+  scrive. I vecchi specchi non attribuibili con certezza a un account non
+  vengono riutilizzati: serve un primo caricamento online della nuova versione.
+
+Le regole Firestore sono gestite nella console Firebase, fuori dal repository.
+Devono consentire solo a `request.auth.uid == uid` l'accesso ai documenti del
+proprio nodo, comprese le nuove voci di `data`. Non sono state modificate né
+verificate contro i dati reali da questi test. La configurazione Firebase nel
+client è pubblica; la protezione effettiva è nelle regole.
+
+## Ripristino e limiti espliciti
+
+Prima del ripristino l'app scarica una copia completa dei dati attuali. In locale
+conserva anche `pizzalab_restore_recovery`, poi sostituisce l'archivio con un'unica
+scrittura. In cloud esegue una transazione indivisibile, verificando che nessun
+altro dispositivo abbia modificato l'archivio durante la lettura.
+
+Il ripristino cloud accetta fino a **449 documenti distinti coinvolti**, più il
+documento di coordinamento, e un payload preventivo di 7 MB. Oltre questi limiti
+si interrompe **senza cancellare nulla**; l'export completo resta disponibile.
+Non si effettua un ripristino spezzato in scritture potenzialmente parziali.
+Il calcolo e i lotti sono limitati a 3.000 palline ciascuno.
+
+## Aggiornamenti PWA
+
+Quando cambi il codice incrementa `CACHE` in `sw.js` e la query versione nei
+riferimenti di `index.html`. L'intero shell deve essere scaricato prima che la
+nuova cache sia installata. La nuova versione attende il pulsante **Aggiorna**,
+per evitare reload durante un impasto; chiudere tutte le schede permette anche
+l'attivazione naturale. Non cancellare cache appartenenti ad altre app sullo
+stesso dominio GitHub Pages.
+
+## Validazione
+
+`npm test` copre proporzioni/unità, input invalidi, identità/alias delle ricette,
+maturazione, costi incompleti, scorte, validazione backup, salvataggi atomici e
+idempotenti, errore di spazio locale, specchi separati per account, scritture
+concorrenti simulate, consumi reali e annullamenti.
+
+Le prove browser isolate usano la modalità locale con Firebase bloccato e
+verificano calcolo, produzione, scarto, annullamento, piano, magazzino, schede,
+navigazione mobile e persistenza al reload. Non sostituiscono un collaudo con
+account Firebase reale e relative regole di produzione.
+
+Per ripetere la prova browser (con un server locale già avviato):
+
+```bash
+npm ci
+npx playwright install chromium
+npm run test:browser
 ```
 
-`type` è il **nome** della ricetta, non il suo id: è così dalle prime versioni
-e i grafici e il frigo raggruppano per quella stringa. `recipeId` è stato
-aggiunto dopo, quindi le voci vecchie non ce l'hanno: non darlo mai per
-scontato.
-
-**Lotto in frigo** (`batches`) — ogni pallina è tracciata singolarmente, così
-si sa quanti giorni ha:
-
-```js
-{ id: 'b...', createdAt: '2026-09-06T12:14:00.000Z', type: 'Solina',
-  ballWeight: 290, note: '', source: 'calcolo' | 'manuale',
-  balls: [{ id: 'b...', createdAt: '...', status: 'in_frigo' | 'consumata', consumedAt }] }
-```
-
-**Ricetta** (`data/recipes`) — le dosi sono valori di riferimento, l'app li
-riscala in proporzione:
-
-```js
-{ id: 'solina', name: 'Solina', icon: '🌾', ballWeight: 290,
-  ingredients: [
-    { id: 'solina', name: 'Solina', icon: '🌾', unit: 'kg', qty: 3.5, flour: true },
-    { id: 'acqua',  name: 'Acqua',  icon: '💧', unit: 'kg', qty: 4.5, water: true },
-    ...
-  ] }
-```
-
-`flour: true` e `water: true` servono solo a calcolare l'idratazione. `unit` è
-`'kg'` o `'g'`.
-
-### localStorage
-
-| Chiave | A cosa serve |
-|---|---|
-| `pizzalab_theme` | Tema scelto. Letto anche da `index.html` prima del disegno. |
-| `pizzalab_checklist` | Spunte della checklist in corso, legate a una firma della ricetta: sopravvivono a un ricaricamento durante l'impasto. |
-| `pizzalab_local_*` | Dati della modalità senza account. |
-| `pizzalab_mirror_*` | Copia dei dati cloud, usata in sola lettura quando manca la rete. |
-| `pizzalab_last_uid` | Serve a distinguere "non ho mai avuto un account" da "sono offline". |
-| `pizzalab_migrated_{uid}` | Segna che la migrazione dal vecchio codice condiviso è già avvenuta. |
-| `pizzalab_costi` | Formato vecchio dei prezzi, letto una volta sola e poi portato sull'account. |
-
----
-
-## Le tre modalità del livello dati
-
-Tutte le letture e scritture passano dall'oggetto `Store` in `app.js`, che ha
-tre modalità. È il pezzo di architettura meno ovvio, quindi vale la pena
-conoscerlo prima di aggiungere una funzione che salva qualcosa.
-
-| Modalità | Quando | Comportamento |
-|---|---|---|
-| `cloud` | Utente autenticato | Firestore con persistenza offline dell'SDK. Ogni dato che arriva viene copiato in `localStorage` come specchio. |
-| `local` | "Usa senza account" oppure primo avvio senza rete e senza account | Tutto su `localStorage`, nessuna sincronizzazione. |
-| `offline` | L'SDK Firebase non si è caricato ma esiste un `pizzalab_last_uid` | Sola lettura dallo specchio. Il calcolo funziona, salvataggi e modifiche sono bloccati con un avviso. |
-
-Regola pratica: **non chiamare mai Firestore direttamente**, usa `Store`.
-Prima di una scrittura chiama `requireWritable()`, che avvisa l'utente e
-restituisce `false` quando siamo in sola lettura.
-
----
-
-## Aggiungere un tema
-
-I componenti in `styles.css` usano solo variabili CSS, mai colori scritti a
-mano. Aggiungere un tema significa quindi scrivere un blocco di variabili, non
-una cascata di eccezioni:
-
-1. In `styles.css`, copia il blocco `:root[data-theme="forno"]` e cambia i
-   valori. Le variabili `--c1`…`--c6` (più le versioni `-soft`) sono le tinte
-   delle serie nei grafici, una per impasto.
-2. In `app.js`, aggiungi una voce all'oggetto `THEMES` con nome, descrizione e
-   colore della barra di sistema.
-3. In `styles.css`, aggiungi l'anteprima `.theme-prev.<nome>` usata dal
-   selettore in Strumenti.
-
-Non serve altro: il selettore, i grafici e la scheda condivisibile si adeguano
-da soli. Eventuali ritocchi strutturali vanno nella sezione *4. Ritocchi per
-tema*, tenendoli al minimo.
-
----
-
-## Trappole note
-
-- **Ricette e ingredienti non stanno nel codice.** Si creano dall'app, in
-  Strumenti. In `app.js` c'è solo `DEFAULT_RECIPES`, usato la prima volta che
-  un account apre l'app. Modificarlo non cambia nulla per chi ha già dei dati.
-
-- **I preset hanno due formati.** Quello vecchio salvava i valori per id di
-  campo HTML (`'solina-kg'`), quello nuovo per id di ingrediente. `loadPresets()`
-  converte al volo con la mappa `LEGACY_PRESET_FIELDS`; la conversione viene
-  scritta su Firestore solo quando l'utente tocca un preset. Non rimuovere
-  quella mappa.
-
-- **La cache del service worker può servire codice vecchio.** Dopo aver
-  modificato `app.js` o `styles.css`, alza `CACHE` in `sw.js` (`pizzalab-vNN`),
-  altrimenti i dispositivi già installati continuano a usare la versione
-  precedente. Al cambio di versione l'app si ricarica una volta da sola.
-
-- **La configurazione Firebase va copiata, non ricordata.** Una `apiKey`
-  sbagliata non produce un errore visibile: l'autenticazione semplicemente non
-  risponde mai. Se tocchi quel blocco, prova davvero il percorso di accesso,
-  non solo la modalità senza account.
-
-- **Il service worker non tocca le richieste verso altri domini.** È voluto:
-  intercettare Firebase rompe login e sincronizzazione in tempo reale.
-
-- **Le regole di sicurezza di Firestore non sono in questo repo.** Si
-  configurano dalla console Firebase e devono limitare ogni utente al proprio
-  nodo `users/{uid}`. La chiave API nel codice è pubblica per progetto e non
-  è un segreto: la protezione sono le regole.
+Il test include l'avvio della PWA offline. Per usare un Chrome già installato,
+impostare `PLAYWRIGHT_CHROMIUM_EXECUTABLE` al percorso dell'eseguibile.

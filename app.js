@@ -60,8 +60,8 @@ function fmtQty(val, unit) {
     return unit === 'kg' ? (Math.round(val * 100) / 100).toFixed(2) : String(Math.round(val));
 }
 function num(v, fallback) {
-    const n = parseFloat(v);
-    return isNaN(n) ? (fallback === undefined ? 0 : fallback) : n;
+    const n = Number(String(v == null ? '' : v).trim().replace(',', '.'));
+    return !Number.isFinite(n) || v === '' || v == null ? (fallback === undefined ? 0 : fallback) : n;
 }
 function buzz(ms) { if (navigator.vibrate) { try { navigator.vibrate(ms); } catch (e) {} } }
 function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
@@ -168,167 +168,193 @@ try {
 /* Collezioni con molti documenti (una scrittura per elemento) e documenti
    singoli che contengono un oggetto intero. Su Firestore diventano
    users/{uid}/{collezione}/{id} e users/{uid}/data/{documento}. */
-const COLLECTIONS = ['history', 'batches'];
-const DOCS = ['recipes', 'presets', 'prices'];
-const MIRROR_PREFIX = 'pizzalab_mirror_';
-
-/**
- * Livello dati con tre modalità:
- *   cloud   → Firestore, con persistenza offline dell'SDK
- *   local   → solo questo dispositivo (uso senza account)
- *   offline → SDK non caricato: si leggono gli ultimi dati salvati, senza scrivere
- */
+const COLLECTIONS = ['history', 'batches', 'frigoLog'];
+const DOCS = ['recipes', 'presets', 'prices', 'inventory', 'plans'];
+const MIRROR_PREFIX = 'pizzalab_mirror_v2_';
+const LOCAL_STATE_KEY = 'pizzalab_local_state_v2';
 const Store = {
-    mode: 'local',
-    uid: null,
-    listeners: { history: [], batches: [] },
-    cache: { history: [], batches: [] },
-    docCache: {},
-    unsubs: [],
-
-    get writable() { return this.mode !== 'offline'; },
-
+    mode: 'local', uid: null, ready: false, epoch: 0, busy: false,
+    listeners: { history: [], batches: [], frigoLog: [] },
+    cache: { history: [], batches: [], frigoLog: [] }, docCache: {}, unsubs: [],
+    get writable() { return this.ready && this.mode !== 'offline' && !this.busy; },
     userDoc() { return FB.db.collection('users').doc(this.uid); },
     col(name) { return this.userDoc().collection(name); },
-
-    mirrorKey(name) { return MIRROR_PREFIX + name; },
-    mirror(name, data) { lsSet(this.mirrorKey(name), JSON.stringify(data)); },
-    readMirror(name, fallback) { return lsJSON(this.mirrorKey(name), fallback); },
-
     localKey(name) { return 'pizzalab_local_' + name; },
-
-    /* — avvio delle modalità — */
+    mirrorKey(name) { return MIRROR_PREFIX + this.uid + '_' + name; },
+    mirror(name, data) { if (this.mode === 'cloud' && this.uid) lsSet(this.mirrorKey(name), JSON.stringify(data)); },
+    readMirror(name, fallback) { return this.uid ? lsJSON(this.mirrorKey(name), fallback) : fallback; },
+    localState() {
+        const existing = lsGet(LOCAL_STATE_KEY);
+        if (existing !== null) { try { return JSON.parse(existing); } catch (e) { throw new Error('Archivio locale danneggiato. Ripristina un backup.'); } }
+        const state = {};
+        COLLECTIONS.forEach(c => { state[c] = lsJSON(this.localKey(c), []); });
+        DOCS.forEach(d => { state[d] = lsJSON(this.localKey(d), null); });
+        state.frigoLog = state.frigoLog.map((e, i) => ({ ...e, id: e.id || 'legacy-' + i }));
+        return state;
+    },
+    publishLocal(state) {
+        COLLECTIONS.forEach(c => { this.cache[c] = state[c] || []; });
+        DOCS.forEach(d => { this.docCache[d] = state[d] || null; });
+        COLLECTIONS.forEach(c => this.emit(c));
+        if (this.ready) dataDocsChanged();
+    },
     startLocal() {
-        this.stop();
-        this.mode = 'local';
-        this.uid = 'local';
-        COLLECTIONS.forEach((c) => {
-            this.cache[c] = lsJSON(this.localKey(c), []);
-            this.emit(c);
-        });
-        DOCS.forEach((d) => { this.docCache[d] = lsJSON(this.localKey(d), null); });
+        this.stop(); this.mode = 'local'; this.uid = 'local';
+        this.publishLocal(this.localState()); this.ready = true;
     },
-
     startOffline() {
-        this.stop();
-        this.mode = 'offline';
-        this.uid = null;
-        COLLECTIONS.forEach((c) => { this.cache[c] = this.readMirror(c, []); this.emit(c); });
-        DOCS.forEach((d) => { this.docCache[d] = this.readMirror(d, null); });
+        this.stop(); this.mode = 'offline'; this.uid = lsGet('pizzalab_last_uid');
+        COLLECTIONS.forEach(c => { this.cache[c] = this.readMirror(c, []); this.emit(c); });
+        DOCS.forEach(d => { this.docCache[d] = this.readMirror(d, null); });
+        this.ready = true;
     },
-
     async startCloud(user) {
-        this.stop();
-        this.mode = 'cloud';
-        this.uid = user.uid;
+        this.stop(); this.mode = 'cloud'; this.uid = user.uid;
         lsSet('pizzalab_last_uid', user.uid);
-        for (const d of DOCS) {
-            try {
-                const snap = await this.userDoc().collection('data').doc(d).get();
-                this.docCache[d] = snap.exists ? snap.data() : null;
-                this.mirror(d, this.docCache[d]);
-            } catch (e) {
-                this.docCache[d] = this.readMirror(d, null);
-            }
-        }
-        COLLECTIONS.forEach((name) => {
-            const unsub = this.col(name).onSnapshot((snap) => {
-                this.cache[name] = snap.docs.map((d) => d.data());
-                this.mirror(name, this.cache[name]);
-                setSyncStatus('online');
-                this.emit(name);
-            }, (err) => {
-                console.warn('snapshot', name, err);
-                setSyncStatus('offline');
-            });
+        const epoch = this.epoch;
+        const states = {};
+        const status = () => setSyncStatus(Object.values(states).some(x => x) ? 'offline' : 'online');
+        await Promise.all([...DOCS, ...COLLECTIONS].map(name => new Promise((resolve, reject) => {
+            const isDoc = DOCS.includes(name);
+            const ref = isDoc ? this.col('data').doc(name) : this.col(name);
+            let first = true;
+            const unsub = ref.onSnapshot({ includeMetadataChanges: true }, snap => {
+                if (this.epoch !== epoch) return;
+                states[name] = snap.metadata.fromCache || snap.metadata.hasPendingWrites;
+                const data = isDoc ? (snap.exists ? snap.data() : null) : snap.docs.map(d => ({ ...d.data(), id: d.data().id || d.id }));
+                if (isDoc) this.docCache[name] = data; else this.cache[name] = data;
+                this.mirror(name, data); status();
+                if (!isDoc) this.emit(name);
+                if (this.ready && isDoc) dataDocsChanged(name);
+                if (first) { first = false; resolve(); }
+            }, err => { setSyncStatus('offline'); if (first) reject(err); else toast('Sincronizzazione interrotta: ' + err.message); });
             this.unsubs.push(unsub);
-        });
+        })));
+        if (epoch !== this.epoch) throw new Error('Account cambiato durante il caricamento.');
+        this.ready = true;
     },
-
     stop() {
-        this.unsubs.forEach((u) => { try { u(); } catch (e) {} });
-        this.unsubs = [];
-        this.cache = { history: [], batches: [] };
-        this.docCache = {};
+        this.epoch++; this.ready = false;
+        this.unsubs.forEach(u => { try { u(); } catch (e) {} }); this.unsubs = [];
+        this.cache = { history: [], batches: [], frigoLog: [] }; this.docCache = {};
+        if (typeof clearResults === 'function') clearResults();
+        if (typeof priceSaveTimer !== 'undefined') { clearTimeout(priceSaveTimer); pendingPrices = {}; }
+        if (typeof priceWrite !== 'undefined') priceWrite = Promise.resolve();
     },
-
-    /* — lettura — */
     list(name) { return this.cache[name] || []; },
     watch(name, cb) { this.listeners[name].push(cb); cb(this.list(name)); },
-    emit(name) { (this.listeners[name] || []).forEach((cb) => cb(this.list(name))); },
-
+    emit(name) { (this.listeners[name] || []).forEach(cb => cb(this.list(name))); },
     getDoc(name) { return this.docCache[name] || null; },
-
-    /* — scrittura — */
-    async setDoc(name, data) {
-        if (!this.writable) throw new Error('offline');
-        this.docCache[name] = data;
-        this.mirror(name, data);
-        if (this.mode === 'local') { lsSet(this.localKey(name), JSON.stringify(data)); return; }
-        await this.userDoc().collection('data').doc(name).set(data);
-    },
-
-    async setItem(name, id, data) {
-        if (!this.writable) throw new Error('offline');
+    /* Reads and writes one coherent operation. The updater is pure and can be retried. */
+    async atomic(keys, update) {
+        if (!this.writable) throw new Error('Salvataggio non disponibile. Attendi il caricamento o torna online.');
+        const epoch = this.epoch;
+        keys = [...new Set(keys)];
+        if (keys.length > 450) throw new Error('Operazione troppo grande: massimo 450 documenti per un ripristino atomico. Nessun dato modificato.');
         if (this.mode === 'local') {
-            const arr = this.cache[name].filter((x) => String(x.id) !== String(id));
-            arr.push(data);
-            this.cache[name] = arr;
-            lsSet(this.localKey(name), JSON.stringify(arr));
-            this.emit(name);
-            return;
+            const run = () => {
+                if (epoch !== this.epoch) throw new Error('Account cambiato.');
+                const state = this.localState(), values = {};
+                for (const key of keys) { const [c, id] = key.split('/'); values[key] = Lab.copy(c === 'data' ? state[id] || null : (state[c] || []).find(x => String(x.id) === id) || null); }
+                const changes = update(values) || {};
+                for (const [key, value] of Object.entries(changes)) {
+                    if (!keys.includes(key)) throw new Error('Scrittura non dichiarata.');
+                    const [c, id] = key.split('/');
+                    if (c === 'data') state[id] = value;
+                    else { state[c] = (state[c] || []).filter(x => String(x.id) !== id); if (value != null) state[c].push(value); }
+                }
+                try { localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(state)); }
+                catch (e) { throw new Error('Impossibile salvare sul dispositivo. Libera spazio o esporta un backup. Nessuna modifica salvata.'); }
+                this.publishLocal(state);
+                return changes;
+            };
+            return navigator.locks ? navigator.locks.request('pizzalab-local-write', run) : run();
         }
-        await this.col(name).doc(String(id)).set(data);
+        if (navigator.onLine === false) throw new Error('Sei offline: il calcolo funziona, ma per salvare sull’account serve la connessione.');
+        const root = this.userDoc();
+        const refs = Object.fromEntries(keys.map(k => [k, root.collection(k.split('/')[0]).doc(k.split('/')[1])]));
+        // This revision serializes bulk replacement with every ordinary writer.
+        const revisionRef = root.collection('data').doc('_revision');
+        return FB.db.runTransaction(async tx => {
+            if (epoch !== this.epoch) throw new Error('Account cambiato.');
+            const revision = await tx.get(revisionRef);
+            const snaps = await Promise.all(keys.map(k => tx.get(refs[k])));
+            const values = Object.fromEntries(keys.map((k, i) => [k, snaps[i].exists ? snaps[i].data() : null]));
+            const changes = update(values) || {};
+            if (epoch !== this.epoch) throw new Error('Account cambiato.');
+            for (const [k, v] of Object.entries(changes)) { if (!refs[k]) throw new Error('Scrittura non dichiarata.'); if (v == null) tx.delete(refs[k]); else tx.set(refs[k], v); }
+            if (Object.keys(changes).length) tx.set(revisionRef, { value: (revision.exists ? revision.data().value || 0 : 0) + 1 });
+            return changes;
+        });
     },
-
-    async deleteItem(name, id) {
-        if (!this.writable) throw new Error('offline');
-        if (this.mode === 'local') {
-            this.cache[name] = this.cache[name].filter((x) => String(x.id) !== String(id));
-            lsSet(this.localKey(name), JSON.stringify(this.cache[name]));
-            this.emit(name);
-            return;
-        }
-        await this.col(name).doc(String(id)).delete();
-    },
-
+    async updateDoc(name, update) { return this.atomic(['data/' + name], v => ({ ['data/' + name]: update(v['data/' + name]) })); },
+    async setDoc(name, data) { return this.updateDoc(name, () => data); },
+    async setItem(name, id, data) { return this.atomic([name + '/' + id], () => ({ [name + '/' + id]: data })); },
+    async deleteItem(name, id) { return this.atomic([name + '/' + id], () => ({ [name + '/' + id]: null })); },
     async clearCollection(name) {
-        if (!this.writable) throw new Error('offline');
-        if (this.mode === 'local') {
-            this.cache[name] = [];
-            lsSet(this.localKey(name), '[]');
-            this.emit(name);
-            return;
-        }
-        const snap = await this.col(name).get();
-        const batch = FB.db.batch();
-        snap.docs.forEach((d) => batch.delete(d.ref));
-        await batch.commit();
+        const epoch = this.epoch;
+        const snapshot = await this.fullState();
+        if (epoch !== this.epoch) throw new Error('Account cambiato.');
+        const keys = snapshot[name].map(e => name + '/' + e.id);
+        return this.replaceKeys(keys, Object.fromEntries(keys.map(k => [k, null])), snapshot._revision);
     },
-
-    async addLog(entry) {
-        if (!this.writable) return;
-        if (this.mode === 'local') {
-            const arr = lsJSON(this.localKey('frigoLog'), []);
-            arr.unshift(entry);
-            lsSet(this.localKey('frigoLog'), JSON.stringify(arr.slice(0, 200)));
-            return;
+    async addLog(entry) { const id = entry.id || uid(); return this.setItem('frigoLog', id, { ...entry, id }); },
+    async getLog(limit = Infinity) { return this.list('frigoLog').slice().sort((a, b) => b.at.localeCompare(a.at)).slice(0, limit); },
+    async fullState() {
+        if (this.mode === 'local') return Lab.copy(this.localState());
+        if (this.mode === 'offline') return { ...Lab.copy(this.docCache), ...Lab.copy(this.cache) };
+        const epoch = this.epoch, root = this.userDoc(), revRef = root.collection('data').doc('_revision');
+        for (let attempt = 0; attempt < 3; attempt++) {
+            const before = await revRef.get({ source: 'server' });
+            const rev = before.exists ? before.data().value || 0 : 0;
+            const state = {};
+            await Promise.all([...DOCS, ...COLLECTIONS].map(async name => {
+                const isDoc = DOCS.includes(name), ref = isDoc ? root.collection('data').doc(name) : root.collection(name);
+                const snap = await ref.get({ source: 'server' });
+                state[name] = isDoc ? (snap.exists ? snap.data() : null) : snap.docs.map(d => ({ ...d.data(), id: d.data().id || d.id }));
+            }));
+            const after = await revRef.get({ source: 'server' });
+            if (epoch !== this.epoch) throw new Error('Account cambiato.');
+            if ((after.exists ? after.data().value || 0 : 0) === rev) return { ...state, _revision: rev };
         }
-        try { await this.col('frigoLog').add(entry); } catch (e) { console.warn('log', e); }
+        throw new Error('I dati stanno cambiando su un altro dispositivo. Riprova tra poco.');
     },
-
-    async getLog(limit) {
-        if (this.mode === 'local') return lsJSON(this.localKey('frigoLog'), []).slice(0, limit);
-        if (this.mode === 'offline') return [];
-        const snap = await this.col('frigoLog').orderBy('at', 'desc').limit(limit).get();
-        return snap.docs.map((d) => d.data());
+    async replaceKeys(keys, changes, expectedRevision) {
+        const epoch = this.epoch;
+        if (this.mode === 'local') return this.atomic(keys, () => changes);
+        // _revision is already read by atomic; a second read verifies the snapshot used to enumerate keys.
+        return this.atomic([...keys, 'data/_revision'], values => {
+            if (epoch !== this.epoch || (values['data/_revision']?.value || 0) !== expectedRevision) throw new Error('Dati cambiati su un altro dispositivo. Riprova il ripristino.');
+            return changes;
+        });
+    },
+    async restore(data) {
+        if (!this.writable) throw new Error('Ripristino non disponibile.');
+        const epoch = this.epoch;
+        const old = await this.fullState();
+        if (epoch !== this.epoch) throw new Error('Account cambiato.');
+        const state = { recipes: { list: data.recipes }, presets: data.presets, prices: { items: data.prices }, inventory: data.inventory, plans: data.plans, history: data.history, batches: data.batches, frigoLog: data.frigoLog };
+        if (this.mode === 'local') {
+            const write = () => {
+                if (epoch !== this.epoch) throw new Error('Account cambiato.');
+                try { localStorage.setItem('pizzalab_restore_recovery', JSON.stringify(this.localState())); localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(state)); }
+                catch (e) { throw new Error('Spazio locale insufficiente: archivio attuale conservato.'); }
+                this.publishLocal(state);
+            };
+            return navigator.locks ? navigator.locks.request('pizzalab-local-write', write) : write();
+        }
+        const changes = {};
+        DOCS.forEach(d => { changes['data/' + d] = state[d]; });
+        COLLECTIONS.forEach(c => { old[c].forEach(e => { changes[c + '/' + e.id] = null; }); state[c].forEach(e => { changes[c + '/' + e.id] = e; }); });
+        if (new Blob([JSON.stringify(changes)]).size > 7000000) throw new Error('Backup troppo grande per un ripristino atomico. Nessun dato modificato.');
+        await this.replaceKeys(Object.keys(changes), changes, old._revision);
     }
 };
 
 /** Blocca l'azione e avvisa se siamo in sola lettura. */
 function requireWritable() {
     if (Store.writable) return true;
-    toast('Sei offline senza account: i dati mostrati sono l\'ultima copia salvata e non si possono modificare.');
+    toast('Salvataggio non disponibile: attendi il caricamento o torna online. Puoi continuare a calcolare.');
     return false;
 }
 
@@ -409,13 +435,12 @@ function recipeIndex(id) { return recipes.findIndex((r) => r.id === id); }
 
 async function loadRecipes() {
     const doc = Store.getDoc('recipes');
-    if (doc && Array.isArray(doc.list) && doc.list.length) {
-        recipes = doc.list;
-    } else {
+    if (doc && Array.isArray(doc.list) && doc.list.length) recipes = doc.list;
+    else {
         recipes = cloneDefaults();
-        if (Store.writable) { try { await Store.setDoc('recipes', { list: recipes }); } catch (e) {} }
+        if (Store.writable) { try { await Store.updateDoc('recipes', current => current?.list?.length ? current : { list: recipes }); } catch (e) { toast('Ricette di esempio non salvate: ' + e.message); } }
     }
-    if (!getRecipe(currentRecipeId)) currentRecipeId = recipes.length ? recipes[0].id : null;
+    if (!getRecipe(currentRecipeId)) currentRecipeId = recipes[0]?.id || null;
 }
 
 async function persistRecipes() {
@@ -437,7 +462,7 @@ function loadPresets() {
                 const ing = map[fid];
                 if (ing) qty[ing] = num(p.vals[fid]);
             });
-            return { name: p.name, qty: qty };
+            return { name: p?.name || 'Preset', qty: qty };
         });
     });
     presets = converted;
@@ -471,6 +496,7 @@ function openRecipeEditor(id) {
         ? JSON.parse(JSON.stringify(existing))
         : { id: '', name: '', icon: '🍕', ballWeight: 250, ingredients: [{ id: '', name: '', icon: '🌾', unit: 'kg', qty: 1, flour: true }] };
     editorState._isNew = !existing;
+    editorState._original = existing ? Lab.copy(existing) : null;
     renderRecipeEditor();
 }
 
@@ -538,71 +564,44 @@ function editorRemoveIng(i) {
 }
 
 async function saveRecipeEditor() {
-    const s = editorState;
-    if (!s.name.trim()) { alert('Dai un nome all\'impasto'); return; }
-    if (!(s.ballWeight > 0)) { alert('Il peso della pallina deve essere maggiore di zero'); return; }
-    const ings = s.ingredients.filter((i) => i.name.trim());
-    if (!ings.length) { alert('Aggiungi almeno un ingrediente'); return; }
-
-    const used = {};
-    ings.forEach((i) => {
-        let base = i.id && i.id.trim() ? i.id : slug(i.name);
-        let id = base, n = 2;
-        while (used[id]) id = base + '-' + n++;
-        used[id] = true;
-        i.id = id;
-        i.name = i.name.trim();
-        i.qty = num(i.qty);
-        i.unit = i.unit === 'g' ? 'g' : 'kg';
-    });
-
-    const recipe = {
-        id: s.id || (function () {
-            let base = slug(s.name), id = base, n = 2;
-            while (getRecipe(id)) id = base + '-' + n++;
-            return id;
-        })(),
-        name: s.name.trim(),
-        icon: s.icon.trim() || '🍕',
-        ballWeight: num(s.ballWeight),
-        ingredients: ings
-    };
-
-    const idx = recipeIndex(recipe.id);
-    if (idx >= 0) recipes[idx] = recipe; else recipes.push(recipe);
-
+    if (!requireWritable()) return;
     try {
-        await persistRecipes();
-        closeModal('modal-recipe');
-        currentRecipeId = recipe.id;
-        renderRecipeTabs();
-        renderRecipeForm();
-        renderRecipeList();
-        renderPriceEditor();
-        toast(idx >= 0 ? 'Impasto aggiornato' : 'Impasto creato');
-    } catch (e) {
-        alert('Errore nel salvataggio: ' + e.message);
-    }
+        const s = editorState, used = new Set();
+        const ingredients = s.ingredients.filter(i => i.name.trim()).map(i => {
+            let base = i.id || slug(i.name), id = base, n = 2;
+            while (used.has(id)) id = base + '-' + n++;
+            used.add(id);
+            return { ...i, id, name: i.name.trim(), qty: Lab.number(i.qty, 'Dose', 0, 100000) };
+        });
+        const recipe = { id: s.id || slug(s.name) + '-' + uid(), name: s.name.trim(), icon: s.icon.trim() || '🍕', ballWeight: Lab.number(s.ballWeight, 'Peso', 1, 5000), ingredients, aliases: [...new Set([...(s.aliases || []), ...(s._original && s._original.name !== s.name.trim() ? [s._original.name] : [])])] };
+        Lab.recipe(recipe);
+        await Store.updateDoc('recipes', doc => {
+            const list = doc?.list || [];
+            const old = list.find(r => r.id === recipe.id);
+            if (s._original && JSON.stringify(old) !== JSON.stringify(s._original)) throw new Error('Ricetta modificata da un altro dispositivo. Riapri la ricetta per vedere le dosi aggiornate.');
+            return { list: list.filter(r => r.id !== recipe.id).concat([recipe]) };
+        });
+        recipes = (Store.getDoc('recipes')?.list || recipes).filter(r => r.id !== recipe.id).concat([recipe]);
+        currentRecipeId = recipe.id; clearResults(); closeModal('modal-recipe');
+        renderRecipeTabs(); renderRecipeForm(); renderRecipeList(); renderPriceEditor();
+        toast(s._isNew ? 'Impasto creato' : 'Impasto aggiornato');
+    } catch (e) { alert(e.message); }
 }
 
 async function deleteRecipe(id) {
+    if (!requireWritable()) return;
     const r = getRecipe(id);
-    if (!r) return;
-    if (recipes.length <= 1) { alert('Deve restare almeno un impasto.'); return; }
-    if (!confirm(`Eliminare l'impasto "${r.name}"?\nGli impasti già registrati nello storico restano.`)) return;
-    recipes = recipes.filter((x) => x.id !== id);
-    delete presets[id];
+    if (!r || !confirm(`Eliminare "${r.name}"? Storico e lotti rimangono consultabili.`)) return;
     try {
-        await persistRecipes();
-        await Store.setDoc('presets', presets);
-    } catch (e) {}
-    if (currentRecipeId === id) currentRecipeId = recipes[0].id;
-    closeModal('modal-recipe');
-    renderRecipeTabs();
-    renderRecipeForm();
-    renderRecipeList();
-    renderPriceEditor();
-    toast('Impasto eliminato');
+        await Store.atomic(['data/recipes', 'data/presets'], values => {
+            const list = values['data/recipes']?.list || [];
+            if (list.length <= 1) throw new Error('Deve restare almeno un impasto.');
+            const presets = { ...(values['data/presets'] || {}) }; delete presets[id];
+            return { 'data/recipes': { list: list.filter(x => x.id !== id) }, 'data/presets': presets };
+        });
+        recipes = recipes.filter(x => x.id !== id); currentRecipeId = recipes[0].id;
+        clearResults(); closeModal('modal-recipe'); renderRecipeTabs(); renderRecipeForm(); renderRecipeList(); renderPriceEditor(); toast('Impasto eliminato');
+    } catch (e) { toast(e.message); }
 }
 
 function renderRecipeList() {
@@ -624,6 +623,10 @@ function renderRecipeList() {
 
 let calcMode = 'balls'; // 'balls' = quante palline voglio, 'stock' = quanto ingrediente ho
 let lastCalc = null;
+let pendingProduction = null;
+let replayRecipe = null;
+function activeRecipe() { return replayRecipe || getRecipe(currentRecipeId); }
+let savingProduction = false;
 
 function renderRecipeTabs() {
     const el = $('recipe-tabs');
@@ -635,6 +638,7 @@ function renderRecipeTabs() {
 }
 
 function switchRecipe(id) {
+    replayRecipe = null;
     currentRecipeId = id;
     clearResults();
     renderRecipeTabs();
@@ -642,20 +646,21 @@ function switchRecipe(id) {
 }
 
 function renderRecipeForm() {
-    const r = getRecipe(currentRecipeId);
+    const r = activeRecipe();
     const el = $('recipe-form');
     if (!r) { el.innerHTML = '<div class="empty"><div class="empty-icon">🍕</div><p>Nessun impasto. Creane uno da Strumenti.</p></div>'; return; }
 
     const fields = r.ingredients.map((ing) => `
         <div class="field">
             <label class="field-label" for="ing-${esc(ing.id)}">${esc(ing.icon)} ${esc(ing.name)} (${ing.unit})</label>
-            <input class="input" type="number" step="${ing.unit === 'kg' ? '0.1' : '1'}" id="ing-${esc(ing.id)}" value="${ing.qty}">
+            <input class="input" type="number" min="0" step="any" oninput="clearResults()" id="ing-${esc(ing.id)}" value="${ing.qty}">
         </div>`).join('');
 
     const stockOptions = ['<option value="__flour__">Farina totale</option>']
         .concat(r.ingredients.map((i) => `<option value="${esc(i.id)}">${esc(i.icon)} ${esc(i.name)}</option>`)).join('');
 
     el.innerHTML = `
+        ${replayRecipe ? `<p class="card-note">Dosi originali della produzione del ${esc(replayRecipe.originalDate)}.</p>` : ''}
         <div id="preset-bar" class="chip-bar no-print"></div>
         <div class="field-row">${fields}</div>
 
@@ -666,12 +671,12 @@ function renderRecipeForm() {
             </div>
             ${calcMode === 'balls' ? `
                 <label class="target-label" for="target-balls">Obiettivo: palline da ${r.ballWeight}g</label>
-                <input class="input big target" type="number" id="target-balls" placeholder="Es. 55" inputmode="numeric">
+                <input class="input big target" type="number" id="target-balls" min="1" max="3000" oninput="clearResults()" placeholder="Es. 55" inputmode="numeric">
             ` : `
                 <label class="target-label" for="stock-ing">Ingrediente disponibile</label>
-                <select class="select" id="stock-ing" style="margin-bottom:10px">${stockOptions}</select>
-                <input class="input big target" type="number" id="stock-qty" placeholder="Es. 10" step="0.1" inputmode="decimal">
-                <p class="card-note" style="text-align:center;margin:10px 0 0">Scrivi quanto ne hai e l'app calcola quante palline ne escono.</p>
+                <select class="select" id="stock-ing" onchange="clearResults();updateStockUnit()" style="margin-bottom:10px">${stockOptions}</select>
+                <input class="input big target" type="number" id="stock-qty" min="0" oninput="clearResults()" placeholder="Es. 10" step="0.1" inputmode="decimal">
+                <p class="card-note" style="text-align:center;margin:10px 0 0"><span id="stock-unit-hint">Quantità disponibile in kg.</span></p>
             `}
         </div>
 
@@ -691,17 +696,17 @@ function setCalcMode(mode) {
 }
 
 function resetRecipeDefaults() {
-    const r = getRecipe(currentRecipeId);
+    const r = activeRecipe();
     if (!r) return;
     r.ingredients.forEach((ing) => { const f = $('ing-' + ing.id); if (f) f.value = ing.qty; });
-    toast('Dosi riportate ai valori dell\'impasto');
+    clearResults(); toast('Dosi riportate ai valori dell\'impasto');
 }
 
 function readFormQuantities() {
-    const r = getRecipe(currentRecipeId);
+    const r = activeRecipe();
     return r.ingredients.map((ing) => {
         const f = $('ing-' + ing.id);
-        return Object.assign({}, ing, { qty: f ? num(f.value) : ing.qty });
+        return Object.assign({}, ing, { qty: f ? Lab.number(f.value, ing.name, 0, 100000) : ing.qty });
     });
 }
 
@@ -710,63 +715,32 @@ function clearResults() {
     $('results').innerHTML = '';
     $('save-panel').classList.add('hidden');
     lastCalc = null;
+    pendingProduction = null;
 }
 
 function calculate() {
-    const r = getRecipe(currentRecipeId);
-    if (!r) return;
-    const ings = readFormQuantities();
-
-    const totalKg = ings.reduce((s, i) => s + (i.unit === 'kg' ? i.qty : i.qty / 1000), 0);
-    if (!(totalKg > 0)) { alert('Inserisci almeno una dose maggiore di zero.'); return; }
-
-    let balls;
-    if (calcMode === 'balls') {
-        balls = Math.round(num($('target-balls').value));
-        if (!(balls > 0)) { alert('Inserisci un numero di palline valido!'); return; }
-    } else {
-        const which = $('stock-ing').value;
-        const have = num($('stock-qty').value);
-        if (!(have > 0)) { alert('Inserisci la quantità che hai a disposizione.'); return; }
-        let baseAmount, label;
-        if (which === '__flour__') {
-            baseAmount = ings.filter((i) => i.flour).reduce((s, i) => s + (i.unit === 'kg' ? i.qty : i.qty / 1000), 0);
-            label = 'farina totale';
-        } else {
-            const ing = ings.find((i) => i.id === which);
-            if (!ing) return;
-            baseAmount = ing.unit === 'kg' ? ing.qty : ing.qty / 1000;
-            label = ing.name;
+    try {
+        const r = activeRecipe(); if (!r) return;
+        const ingredients = readFormQuantities();
+        Lab.recipe({ ...r, ingredients });
+        let balls;
+        if (calcMode === 'balls') balls = Lab.number($('target-balls').value, 'Palline', 1, Lab.MAX_BALLS, true);
+        else {
+            const which = $('stock-ing').value, ingredient = ingredients.find(i => i.id === which);
+            const base = which === '__flour__' ? ingredients.filter(i => i.flour).reduce((sum, i) => sum + Lab.kg(i), 0) : Lab.kg(ingredient);
+            if (!(base > 0)) throw new Error('La dose di riferimento deve essere maggiore di zero.');
+            const have = Lab.number($('stock-qty').value, 'Disponibilità', 0.000001, 100000);
+            const haveKg = ingredient?.unit === 'g' ? have / 1000 : have;
+            const total = ingredients.reduce((sum, i) => sum + Lab.kg(i), 0);
+            balls = Math.floor(total * haveKg / base * 1000 / r.ballWeight + 1e-9);
         }
-        if (!(baseAmount > 0)) { alert(`La dose di ${label} è zero: non posso calcolare la proporzione.`); return; }
-        // Nella modalità inversa la quantità inserita è in kg se l'ingrediente è in kg, altrimenti in g
-        const haveKg = (which !== '__flour__' && ings.find((i) => i.id === which).unit === 'g') ? have / 1000 : have;
-        const factor = haveKg / baseAmount;
-        balls = Math.floor((totalKg * factor * 1000) / r.ballWeight);
-        if (balls <= 0) { alert(`Con questa quantità non esce nemmeno una pallina da ${r.ballWeight}g.`); return; }
-    }
-
-    const targetKg = (balls * r.ballWeight) / 1000;
-    const factor = targetKg / totalKg;
-
-    const scaled = ings.map((i) => Object.assign({}, i, { scaled: i.qty * factor }));
-    const flourKg = scaled.filter((i) => i.flour).reduce((s, i) => s + (i.unit === 'kg' ? i.scaled : i.scaled / 1000), 0);
-    const waterKg = scaled.filter((i) => i.water).reduce((s, i) => s + (i.unit === 'kg' ? i.scaled : i.scaled / 1000), 0);
-    const hydration = flourKg > 0 && waterKg > 0 ? (waterKg / flourKg) * 100 : null;
-
-    lastCalc = {
-        recipeId: r.id, type: r.name, icon: r.icon, ballWeight: r.ballWeight,
-        palline: balls, totalKg: targetKg, hydration: hydration, ingredients: scaled
-    };
-
-    renderResults();
-    $('save-panel').classList.remove('hidden');
-    $('save-date').value = todayStr();
-    $('save-note').value = '';
-    syncSaveCassetti();
-    $('btn-save').textContent = 'Salva impasto';
-    $('btn-save').disabled = false;
-    setTimeout(() => $('results').scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+        lastCalc = Lab.scale(r, ingredients, balls); pendingProduction = null;
+        renderResults(); $('save-panel').classList.remove('hidden');
+        const now = new Date(); $('save-date').value = todayStr(); $('save-time').value = now.toTimeString().slice(0, 5);
+        $('save-note').value = ''; $('save-ready-hours').value = '24'; $('save-use-hours').value = '72';
+        syncSaveCassetti(); $('btn-save').textContent = 'Salva impasto'; $('btn-save').disabled = false;
+        setTimeout(() => $('results').scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+    } catch (e) { clearResults(); alert(e.message); }
 }
 
 function renderResults() {
@@ -803,7 +777,7 @@ function renderResults() {
             <div class="check-box">✓</div>
             <div class="res-icon">${esc(i.icon)}</div>
             <div class="res-label">${esc(i.name)}</div>
-            <div class="res-value">${fmtQty(i.scaled, i.unit)} <span class="res-unit">${i.unit}</span></div>
+            <div class="res-value">${Lab.dose(i.scaled, i.unit).value} <span class="res-unit">${Lab.dose(i.scaled, i.unit).unit}</span></div>
         </div>`;
     });
 
@@ -864,53 +838,18 @@ function restoreChecklist() {
 
 let costOpen = false;
 
-function computeCost() {
-    if (!lastCalc) return null;
-    let kcal = 0, cost = 0, missing = 0;
-    const rows = lastCalc.ingredients.map((i) => {
-        const p = prices[i.id] || {};
-        const grams = i.unit === 'kg' ? i.scaled * 1000 : i.scaled;
-        const hasData = (p.cal || 0) > 0 || (p.prezzo || 0) > 0;
-        if (!hasData) missing++;
-        const k = ((p.cal || 0) / 100) * grams;
-        const c = ((p.prezzo || 0) / 1000) * grams;
-        kcal += k; cost += c;
-        return { name: i.name, icon: i.icon, qty: fmtQty(i.scaled, i.unit), unit: i.unit, kcal: k, cost: c, hasData };
-    });
-    const balls = lastCalc.palline || 1;
-    return { rows, kcal, cost, missing, perBallKcal: kcal / balls, perBallCost: cost / balls };
+function computeCost() { return lastCalc ? Lab.costs(lastCalc, prices) : null;
 }
 
 function costStripHTML() {
-    const c = computeCost();
-    if (!c) return '';
-    if (c.cost === 0 && c.kcal === 0) {
-        return `<div class="cost-strip" onclick="showSection('strumenti')">
-            <div class="cost-strip-main">
-                <div class="cost-strip-label">Costo e calorie</div>
-                <div class="cost-strip-val" style="font-size:0.85rem;font-weight:500;color:var(--muted)">Imposta prezzi e kcal in Strumenti →</div>
-            </div>
-        </div>`;
-    }
-    const detail = costOpen ? costDetailHTML(c) : '';
-    return `<div class="cost-strip${costOpen ? ' open' : ''}" onclick="toggleCostDetail()">
-        <div class="cost-strip-main">
-            <div class="cost-strip-label">Per pallina · ${lastCalc.ballWeight}g</div>
-            <div class="cost-strip-val">€${c.perBallCost.toFixed(2)}<span class="sep">·</span>${Math.round(c.perBallKcal)} kcal</div>
-        </div>
-        <span class="cost-strip-arrow">▾</span>
-    </div>${detail}`;
+    const c = computeCost(); if (!c) return '';
+    return `<div class="cost-strip" onclick="toggleCostDetail()"><div class="cost-strip-main"><div class="cost-strip-label">Per pallina · ${lastCalc.ballWeight}g</div>
+        <div class="cost-strip-val">€${c.perBallCost.toFixed(2)}${c.missingPrice ? ' (parziale)' : ''}<span class="sep">·</span>${Math.round(c.perBallKcal)} kcal${c.missingCalories ? ' (parziali)' : ''}</div></div><span>⌄</span></div>${costOpen ? costDetailHTML(c) : ''}`;
 }
-
 function costDetailHTML(c) {
-    const rows = c.rows.map((r) => `<div class="cost-row">
-        <span>${esc(r.icon)} ${esc(r.name)} <span style="color:var(--faint)">${r.qty}${r.unit}</span></span>
-        <span>${r.hasData ? `${Math.round(r.kcal)} kcal · €${r.cost.toFixed(2)}` : '<span style="color:var(--faint)">dati mancanti</span>'}</span>
-    </div>`).join('');
-    return `<div class="cost-detail">${rows}
-        <div class="cost-row sum"><span>Totale impasto</span><span>${Math.round(c.kcal)} kcal · €${c.cost.toFixed(2)}</span></div>
-        ${c.missing ? `<div class="cost-missing">${c.missing} ingredient${c.missing === 1 ? 'e' : 'i'} senza prezzo o calorie. Completali in Strumenti per un totale esatto.</div>` : ''}
-    </div>`;
+    return `<div class="cost-detail">${c.rows.map(r => `<div class="cost-row"><span>${esc(r.name)} · ${r.qty} ${r.unit}</span><span>${r.hasPrice ? '€' + r.cost.toFixed(2) : 'prezzo mancante'} · ${r.hasCalories ? Math.round(r.kcal) + ' kcal' : 'calorie mancanti'}</span></div>`).join('')}
+    <div class="cost-row sum"><span>Totale impasto${c.missingPrice || c.missingCalories ? ' · parziale' : ''}</span><span>€${c.cost.toFixed(2)} · ${Math.round(c.kcal)} kcal</span></div>
+    <p class="card-note">${c.missingPrice} prezzi e ${c.missingCalories} valori calorici mancanti. Inserisci 0 per un valore effettivamente nullo.</p></div>`;
 }
 
 function toggleCostDetail() {
@@ -928,21 +867,21 @@ function renderPriceEditor() {
         return `<div class="price-row">
             <span class="price-label">${esc(i.icon)} ${esc(i.name)}</span>
             <div class="price-fields">
-                <input class="input sm" type="number" placeholder="kcal/100g" value="${p.cal != null && p.cal !== 0 ? p.cal : ''}" oninput="setPrice('${esc(i.id)}','cal',this.value)">
-                <input class="input sm" type="number" step="0.01" placeholder="€/kg" value="${p.prezzo != null && p.prezzo !== 0 ? p.prezzo : ''}" oninput="setPrice('${esc(i.id)}','prezzo',this.value)">
+                <input class="input sm" type="number" placeholder="kcal/100g" value="${p.cal != null ? p.cal : ''}" min="0" onchange="setPrice('${esc(i.id)}','cal',this.value)">
+                <input class="input sm" type="number" step="0.01" placeholder="€/kg" value="${p.prezzo != null ? p.prezzo : ''}" min="0" onchange="setPrice('${esc(i.id)}','prezzo',this.value)">
             </div>
         </div>`;
     }).join('');
 }
 
 let priceSaveTimer = null;
+let pendingPrices = {};
 function setPrice(id, key, value) {
-    if (!prices[id]) prices[id] = {};
-    prices[id][key] = num(value);
+    if (!requireWritable()) return;
+    try { if (value !== '') Lab.number(value, 'Prezzo / calorie', 0); } catch (e) { toast(e.message); return; }
+    pendingPrices[id] ||= {}; pendingPrices[id][key] = value === '' ? null : Lab.number(value, 'Valore', 0);
     clearTimeout(priceSaveTimer);
-    priceSaveTimer = setTimeout(async () => {
-        try { await Store.setDoc('prices', { items: prices }); } catch (e) {}
-    }, 600);
+    priceSaveTimer = setTimeout(() => flushPrices().catch(() => {}), 150);
 }
 
 /* ── 8. SALVATAGGIO E STORICO ─────────────────────────────────────── */
@@ -953,45 +892,40 @@ let editingEntryId = null;
 
 /** Precompila "palline in frigo" con quelle già presenti per questo impasto. */
 function syncSaveCassetti() {
-    const el = $('save-cassetti');
-    if (!el || !lastCalc) return;
-    if (document.activeElement === el) return;
-    el.value = String(countInFrigoByType(lastCalc.type));
+    if ($('save-cassetti') && lastCalc) $('save-cassetti').value = String(countInFrigoByType(lastCalc.recipeId));
 }
 
 async function confirmSave() {
-    if (!lastCalc || !requireWritable()) return;
-    const btn = $('btn-save');
-    const now = new Date();
-    const declared = Math.max(0, Math.round(num($('save-cassetti').value)));
-    const entry = {
-        id: now.getTime(),
-        date: $('save-date').value || todayStr(),
-        time: now.toTimeString().slice(0, 5),
-        type: lastCalc.type,
-        recipeId: lastCalc.recipeId,
-        palline: lastCalc.palline,
-        ballWeight: lastCalc.ballWeight,
-        cassetti: declared,
-        note: $('save-note').value.trim()
-    };
-
-    btn.textContent = 'Salvataggio...'; btn.disabled = true;
+    if (!lastCalc || savingProduction || !requireWritable()) return;
+    const btn = $('btn-save'); savingProduction = true; btn.disabled = true; btn.textContent = 'Salvataggio…';
     try {
-        await Store.setItem('history', entry.id, entry);
-        // Allinea il frigo: se dichiari meno palline di quelle registrate, consuma le più vecchie
-        const actual = countInFrigoByType(entry.type);
-        if (declared < actual) {
-            await consumeOldestByType(entry.type, actual - declared, `allineamento: dichiarate ${declared}, presenti ${actual}`);
+        await flushPrices();
+        if (!pendingProduction) {
+            const day = Lab.date($('save-date').value), time = $('save-time').value;
+            if (!/^\d{2}:\d{2}$/.test(time)) throw new Error('Indica l’ora di produzione.');
+            const createdAt = new Date(day + 'T' + time + ':00').toISOString();
+            if (Date.parse(createdAt) > Date.now() + 60000) throw new Error('Per una produzione futura usa il piano giornaliero.');
+            const readyHours = Lab.number($('save-ready-hours').value, 'Ore prima dell’utilizzo', 0, 720);
+            const endHours = Lab.number($('save-use-hours').value, 'Fine utilizzo dopo ore', readyHours, 1440);
+            const calc = Lab.copy(lastCalc), id = Date.now(), batchId = 'p' + id + '-' + uid();
+            const entry = { id, date: day, time, type: calc.type, recipeId: calc.recipeId, palline: calc.palline, ballWeight: calc.ballWeight, cassetti: countInFrigoByType(calc.recipeId), note: $('save-note').value.trim(), batchId,
+                snapshot: { ...calc, prices: Lab.copy(prices), costs: Lab.costs(calc, prices) } };
+            const batch = { id: batchId, historyId: id, recipeId: calc.recipeId, createdAt, fridgeAt: createdAt, readyAt: new Date(Date.parse(createdAt) + readyHours * 3600000).toISOString(), useBy: new Date(Date.parse(createdAt) + endHours * 3600000).toISOString(), type: calc.type, ballWeight: calc.ballWeight, note: entry.note, source: 'calcolo',
+                balls: Array.from({ length: calc.palline }, () => ({ id: 'b' + uid(), createdAt, status: 'in_frigo' })) };
+            pendingProduction = { entry, batch, calc, log: { id: batchId, batchId, recipeId: calc.recipeId, type: calc.type, at: createdAt, kind: 'produzione', qty: calc.palline } };
         }
-        await createBatchFromCalc(entry);
-        btn.textContent = '✅ Salvato!';
-        toast('Impasto salvato nello storico e nel frigo');
-    } catch (e) {
-        btn.textContent = '❌ Errore — riprova';
-        btn.disabled = false;
-        console.warn(e);
-    }
+        const op = pendingProduction, hk = 'history/' + op.entry.id, bk = 'batches/' + op.batch.id, lk = 'frigoLog/' + op.log.id;
+        await Store.atomic([hk, bk, lk, 'data/inventory'], values => {
+            if (values[hk] || values[bk] || values[lk]) {
+                if (values[hk]?.batchId === op.batch.id && values[bk] && values[lk]) return {};
+                throw new Error('Identificativo già presente. Ricalcola prima di salvare.');
+            }
+            const stock = Lab.stockUse(values['data/inventory'], op.calc);
+            return { [hk]: { ...op.entry, inventoryUsed: stock.used }, [bk]: op.batch, [lk]: op.log, 'data/inventory': stock.inventory };
+        });
+        btn.textContent = '✅ Salvato'; toast('Produzione, frigo e magazzino aggiornati');
+    } catch (e) { btn.disabled = false; btn.textContent = 'Riprova salvataggio'; toast(e.message); }
+    finally { savingProduction = false; }
 }
 
 function matchesQuery(e, q) {
@@ -1020,7 +954,7 @@ function renderStorico() {
         const items = grouped[date].slice().sort((a, b) => b.id - a.id);
         const total = items.reduce((s, i) => s + (i.palline || 0), 0);
         const entries = items.map((e) => {
-            const r = recipeByName(e.type);
+            const r = getRecipe(e.recipeId) || recipeByName(e.type);
             const icon = r ? r.icon : '🍞';
             if (editingEntryId === e.id) return entryEditHTML(e, icon);
             return `<div class="entry">
@@ -1038,6 +972,7 @@ function renderStorico() {
                             <div class="entry-weight">palline ${e.ballWeight}g</div>
                         </div>
                         <div class="entry-actions">
+                            <button class="btn btn-icon" title="Scheda produzione" aria-label="Scheda produzione" onclick="openProduction(${e.id})">▤</button>
                             <button class="btn btn-icon" title="Modifica" onclick="startEditEntry(${e.id})">✎</button>
                             <button class="btn btn-icon" title="Elimina" onclick="askDeleteEntry(${e.id})">✕</button>
                         </div>
@@ -1059,14 +994,14 @@ function entryEditHTML(e, icon) {
         <div class="entry-main">
             <div class="entry-left"><span class="entry-icon">${esc(icon)}</span><div class="entry-type">${esc(e.type)}</div></div>
         </div>
-        <div class="entry-edit">
+        <div class="entry-edit">${e.batchId ? '<p class="card-note">Quantità e dosi originali sono conservate. Per rettificare le palline usa i movimenti del Frigo.</p>' : ''}
             <div class="field-row">
-                <div class="field"><label class="field-label">Data</label><input class="input sm" type="date" id="edit-date" value="${esc(e.date)}"></div>
-                <div class="field"><label class="field-label">Palline</label><input class="input sm" type="number" id="edit-palline" value="${e.palline}"></div>
+                <div class="field"><label class="field-label">Data</label><input class="input sm" type="date" id="edit-date" ${e.batchId ? 'disabled' : ''} value="${esc(e.date)}"></div>
+                <div class="field"><label class="field-label">Palline</label><input class="input sm" type="number" id="edit-palline" ${e.batchId ? 'disabled' : ''} value="${e.palline}"></div>
             </div>
             <div class="field-row">
-                <div class="field"><label class="field-label">In frigo</label><input class="input sm" type="number" id="edit-cassetti" value="${e.cassetti || 0}"></div>
-                <div class="field"><label class="field-label">Peso pallina</label><input class="input sm" type="number" id="edit-bw" value="${e.ballWeight}"></div>
+                <div class="field"><label class="field-label">In frigo</label><input class="input sm" type="number" id="edit-cassetti" ${e.batchId ? 'disabled' : ''} value="${e.cassetti || 0}"></div>
+                <div class="field"><label class="field-label">Peso pallina</label><input class="input sm" type="number" id="edit-bw" ${e.batchId ? 'disabled' : ''} value="${e.ballWeight}"></div>
             </div>
             <div class="field"><label class="field-label">Nota</label><input class="input sm" id="edit-note" value="${esc(e.note || '')}"></div>
             <div class="btn-row">
@@ -1081,27 +1016,24 @@ function startEditEntry(id) { if (!requireWritable()) return; editingEntryId = i
 function cancelEditEntry() { editingEntryId = null; renderStorico(); }
 
 async function saveEditEntry(id) {
-    const e = historyCache.find((x) => x.id === id);
-    if (!e) return;
-    const updated = Object.assign({}, e, {
-        date: $('edit-date').value || e.date,
-        palline: Math.max(0, Math.round(num($('edit-palline').value))),
-        cassetti: Math.max(0, Math.round(num($('edit-cassetti').value))),
-        ballWeight: Math.max(1, Math.round(num($('edit-bw').value))),
-        note: $('edit-note').value.trim()
-    });
-    editingEntryId = null;
+    if (!requireWritable()) return;
+    const original = historyCache.find(x => x.id === id); if (!original) return;
     try {
-        await Store.setItem('history', id, updated);
-        toast('Impasto aggiornato');
-    } catch (err) { toast('Errore nel salvataggio'); }
-    renderStorico();
+        const note = $('edit-note').value.trim();
+        const patch = original.batchId ? { note } : { note, date: Lab.date($('edit-date').value), palline: Lab.number($('edit-palline').value, 'Palline', 0, Lab.MAX_BALLS, true), cassetti: Lab.number($('edit-cassetti').value, 'Frigo', 0, 100000, true), ballWeight: Lab.number($('edit-bw').value, 'Peso', 1, 5000) };
+        await Store.atomic(['history/' + id], values => {
+            if (JSON.stringify(values['history/' + id]) !== JSON.stringify(original)) throw new Error('Produzione modificata da un altro dispositivo. Riapri la scheda.');
+            return { ['history/' + id]: { ...original, ...patch } };
+        });
+        editingEntryId = null; renderStorico(); toast('Produzione aggiornata');
+    } catch (e) { toast(e.message); }
 }
 
 async function askDeleteEntry(id) {
     if (!requireWritable()) return;
     const e = historyCache.find((x) => x.id === id);
     if (!e) return;
+    if (e.batchId && !confirm('Eliminare solo la scheda dallo storico? Le palline e lo scarico ingredienti restano registrati.')) return;
     try {
         await Store.deleteItem('history', id);
         toast(`${e.type}: ${e.palline} palline eliminate`, {
@@ -1145,15 +1077,12 @@ const DAY_LABELS = ['Dom', 'Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab'];
 
 /** Serie del grafico: una per ricetta, più eventuali tipi presenti solo nello storico. */
 function chartSeries() {
-    const series = recipes.map((r, i) => ({ key: r.name, label: r.name, color: seriesColor(i), soft: seriesColor(i, true) }));
-    const known = new Set(series.map((s) => s.key.toLowerCase()));
-    historyCache.forEach((e) => {
-        const k = String(e.type || '').trim();
-        if (k && !known.has(k.toLowerCase())) {
-            known.add(k.toLowerCase());
-            const i = series.length;
-            series.push({ key: k, label: k, color: seriesColor(i), soft: seriesColor(i, true) });
-        }
+    const series = recipes.map((r, i) => ({ key: r.id, label: r.name, color: seriesColor(i), soft: seriesColor(i, true) }));
+    const seen = new Set(series.map(s => s.key));
+    [...historyCache, ...batches, ...Store.list('frigoLog')].forEach(e => {
+        if (!e.type && !e.recipeId) return;
+        const key = Lab.key(e, recipes);
+        if (!seen.has(key)) { seen.add(key); const i = series.length; series.push({ key, label: e.type || 'Ricetta archiviata', color: seriesColor(i), soft: seriesColor(i, true) }); }
     });
     return series;
 }
@@ -1162,32 +1091,37 @@ function getDayData(ds, series) {
     const r = { ds, byType: {}, newP: 0, frigoP: 0 };
     series.forEach((s) => { r.byType[s.key] = { neu: 0, frigo: 0 }; });
     historyCache.filter((e) => e.date === ds).forEach((e) => {
-        const k = String(e.type || '').trim();
+        const k = Lab.key(e, recipes);
         if (!r.byType[k]) r.byType[k] = { neu: 0, frigo: 0 };
         r.byType[k].neu += e.palline || 0;
-        r.byType[k].frigo += e.cassetti || 0;
+        r.byType[k].frigo = Math.max(r.byType[k].frigo, e.cassetti || 0);
         r.newP += e.palline || 0;
-        r.frigoP += e.cassetti || 0;
+
     });
+    r.frigoP = Object.values(r.byType).reduce((sum, x) => sum + x.frigo, 0);
     r.total = r.newP + r.frigoP;
     return r;
 }
 
 function getConsumption(ds, series) {
-    const prev = new Date(ds + 'T12:00:00');
-    prev.setDate(prev.getDate() - 1);
-    const today = getDayData(ds, series);
-    const yest = getDayData(dateStr(prev), series);
-    const byType = {};
-    let total = 0;
-    series.forEach((s) => {
-        const t = today.byType[s.key] || { neu: 0, frigo: 0 };
-        const y = yest.byType[s.key] || { neu: 0, frigo: 0 };
-        const v = Math.max(0, t.neu + y.frigo - t.frigo);
-        byType[s.key] = v;
-        total += v;
+    const byType = Object.fromEntries(series.map(s => [s.key, 0]));
+    const tracked = new Set();
+    Store.list('frigoLog').forEach(e => {
+        if (!e.batchId) return;
+        tracked.add(e.batchId);
+        if (e.schemaVersion !== 2 || e.kind !== 'consumo' || e.undoneAt || dateStr(new Date(e.at)) !== ds) return;
+        const batch = findBatch(e.batchId);
+        const key = Lab.key(e.recipeId || e.type ? e : batch || { type: 'Archivio non classificato' }, recipes);
+        byType[key] = (byType[key] || 0) + (e.qty || e.count || 0);
     });
-    return { ds, byType, total };
+    // Old lots have no complete event ledger: count their individually recorded consumption.
+    batches.forEach(b => {
+        const key = Lab.key(b, recipes);
+        const old = b.balls.filter(x => x.status === 'consumata' && !x.operationId && x.consumedAt && dateStr(new Date(x.consumedAt)) === ds).length;
+        // Legacy logs may be incomplete or record alignment as consumption; the balls are authoritative.
+        if (old) byType[key] = (byType[key] || 0) + old;
+    });
+    return { ds, byType, total: Object.values(byType).reduce((a, b) => a + b, 0) };
 }
 
 function stackHTML(segments) {
@@ -1330,7 +1264,9 @@ function renderYear(series) {
         const byType = {};
         let total = 0;
         series.forEach((s) => {
-            const v = Math.max(0, mo.byType[s.key].neu);
+            let v = 0;
+            const dim = new Date(year, mo.m + 1, 0).getDate();
+            for (let day = 1; day <= dim; day++) v += getConsumption(dateStr(new Date(year, mo.m, day)), series).byType[s.key] || 0;
             byType[s.key] = v; total += v;
         });
         return { byType, total, label: mo.label };
@@ -1382,14 +1318,8 @@ function ageBucket(iso) {
 }
 function normType(t) { return String(t || '').trim().toLowerCase(); }
 
-function countInFrigoByType(type) {
-    const n = normType(type);
-    let c = 0;
-    batches.forEach((b) => {
-        if (normType(b.type) !== n) return;
-        (b.balls || []).forEach((ball) => { if (ball.status === 'in_frigo') c++; });
-    });
-    return c;
+function countInFrigoByType(identity) {
+    return batches.filter(b => (getRecipe(identity) || batches.some(lot => lot.recipeId === identity) ? Lab.recipeId(b, recipes) === identity : normType(b.type) === normType(identity))).reduce((sum, b) => sum + (b.balls || []).filter(x => x.status === 'in_frigo').length, 0);
 }
 
 function batchColor(type) {
@@ -1397,121 +1327,15 @@ function batchColor(type) {
     return i >= 0 ? seriesColor(i) : 'var(--faint)';
 }
 
-async function createBatchFromCalc(entry) {
-    const qty = parseInt(entry.palline, 10) || 0;
-    if (qty <= 0) return;
-    const now = new Date().toISOString();
-    const balls = [];
-    for (let i = 0; i < qty; i++) balls.push({ id: 'b' + uid(), createdAt: now, status: 'in_frigo' });
-    const batch = {
-        id: 'b' + uid(), createdAt: now, type: entry.type, ballWeight: entry.ballWeight || 0,
-        note: entry.note || '', source: 'calcolo', balls: balls
-    };
-    await Store.setItem('batches', batch.id, batch);
-    await Store.addLog({ at: now, kind: 'produzione', batchId: batch.id, qty: qty });
-}
 
-async function createManualBatch(type, qty, note) {
-    const now = new Date().toISOString();
-    const balls = [];
-    for (let i = 0; i < qty; i++) balls.push({ id: 'b' + uid(), createdAt: now, status: 'in_frigo' });
-    const batch = { id: 'b' + uid(), createdAt: now, type: type, ballWeight: 0, note: note || '', source: 'manuale', balls: balls };
-    await Store.setItem('batches', batch.id, batch);
-    await Store.addLog({ at: now, kind: 'aggiunta_manuale', batchId: batch.id, qty: qty, note: note || '' });
-}
 
 function findBatch(id) { return batches.find((b) => b.id === id); }
 
-async function addBall(batchId) {
-    if (!requireWritable()) return;
-    const b = findBatch(batchId);
-    if (!b) return;
-    const now = new Date().toISOString();
-    const ball = { id: 'b' + uid(), createdAt: now, status: 'in_frigo' };
-    const updated = Object.assign({}, b, { balls: (b.balls || []).concat([ball]) });
-    await Store.setItem('batches', batchId, updated);
-    await Store.addLog({ at: now, kind: 'aggiunta_manuale', batchId: batchId, qty: 1 });
-    buzz(15);
-}
 
-async function removeBall(batchId) {
-    if (!requireWritable()) return;
-    const b = findBatch(batchId);
-    if (!b) return;
-    const now = new Date().toISOString();
-    let done = false;
-    const balls = (b.balls || []).map((ball) => {
-        if (!done && ball.status === 'in_frigo') { done = true; return Object.assign({}, ball, { status: 'consumata', consumedAt: now }); }
-        return ball;
-    });
-    if (!done) return;
-    await Store.setItem('batches', batchId, Object.assign({}, b, { balls }));
-    await Store.addLog({ at: now, kind: 'consumo', batchId: batchId, qty: 1 });
-    buzz(15);
-}
 
-async function consumeBall(batchId, ballId) {
-    if (!requireWritable()) return;
-    const b = findBatch(batchId);
-    if (!b) return;
-    const now = new Date().toISOString();
-    const balls = (b.balls || []).map((ball) =>
-        ball.id === ballId && ball.status === 'in_frigo' ? Object.assign({}, ball, { status: 'consumata', consumedAt: now }) : ball);
-    await Store.setItem('batches', batchId, Object.assign({}, b, { balls }));
-    await Store.addLog({ at: now, kind: 'consumo', batchId: batchId, qty: 1 });
-}
 
-async function consumeAll(batchId) {
-    if (!requireWritable()) return;
-    const b = findBatch(batchId);
-    if (!b) return;
-    const open = (b.balls || []).filter((x) => x.status === 'in_frigo');
-    if (!open.length) return;
-    if (!confirm(`Segnare come finite le ${open.length} palline rimanenti?`)) return;
-    const now = new Date().toISOString();
-    const balls = (b.balls || []).map((ball) =>
-        ball.status === 'in_frigo' ? Object.assign({}, ball, { status: 'consumata', consumedAt: now }) : ball);
-    await Store.setItem('batches', batchId, Object.assign({}, b, { balls }));
-    await Store.addLog({ at: now, kind: 'consumo', batchId: batchId, qty: open.length });
-}
 
-async function deleteBatch(batchId) {
-    if (!requireWritable()) return;
-    const b = findBatch(batchId);
-    if (!b) return;
-    if (!confirm('Eliminare definitivamente questo batch?')) return;
-    const open = (b.balls || []).filter((x) => x.status === 'in_frigo').length;
-    await Store.addLog({ at: new Date().toISOString(), kind: 'rimozione_manuale', batchId: batchId, qty: open, note: 'batch eliminato' });
-    await Store.deleteItem('batches', batchId);
-    toast('Batch eliminato', {
-        label: 'Annulla',
-        run: async () => { try { await Store.setItem('batches', b.id, b); toast('Batch ripristinato'); } catch (e) {} }
-    });
-}
 
-/** Consuma le palline più vecchie di un tipo: usata per allineare il frigo al salvataggio. */
-async function consumeOldestByType(type, qty, note) {
-    const n = normType(type);
-    let remaining = qty;
-    const sorted = batches.slice().sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
-    for (const b of sorted) {
-        if (remaining <= 0) break;
-        if (normType(b.type) !== n) continue;
-        let changed = 0;
-        const balls = (b.balls || []).map((ball) => {
-            if (remaining > 0 && ball.status === 'in_frigo') {
-                remaining--; changed++;
-                return Object.assign({}, ball, { status: 'consumata', consumedAt: new Date().toISOString() });
-            }
-            return ball;
-        });
-        if (changed) {
-            await Store.setItem('batches', b.id, Object.assign({}, b, { balls }));
-            await Store.addLog({ at: new Date().toISOString(), kind: 'consumo', batchId: b.id, qty: changed, note: note || 'allineamento' });
-        }
-    }
-    return qty - remaining;
-}
 
 function toggleBalls(id) {
     const el = $('balls-' + id);
@@ -1529,7 +1353,7 @@ function renderFrigo() {
     }));
 
     const visible = batches.slice()
-        .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
+        .sort((a, b) => (Date.parse(a.useBy || a.createdAt) - Date.parse(b.useBy || b.createdAt)))
         .filter((b) => (b.balls || []).some((x) => x.status === 'in_frigo'));
 
     let html = `<div class="frigo-summary">
@@ -1550,27 +1374,27 @@ function renderFrigo() {
             const arr = b.balls || [];
             const inF = arr.filter((x) => x.status === 'in_frigo').length;
             const icon = daysAgo(b.createdAt) === 0 ? '🆕' : '🧊';
-            const balls = arr.map((ball) => `<div class="ball${ball.status === 'consumata' ? ' done' : ''}">
-                <span>${ball.status === 'consumata' ? '✅' : '🟢'}</span>
+            const balls = arr.map((ball) => `<div class="ball${ball.status !== 'in_frigo' ? ' done' : ''}">
+                <span>${ball.status === 'in_frigo' ? '🟢' : ball.status === 'scartata' ? '🗑' : ball.status === 'rettificata' ? '⚙️' : '✅'}</span>
                 <span class="ball-date">${fmtDT(ball.createdAt)}</span>
                 ${ball.status === 'in_frigo' ? `<button class="ball-btn" onclick="consumeBall('${esc(b.id)}','${esc(ball.id)}')">Finita</button>` : ''}
             </div>`).join('');
-            return `<div class="batch" style="--recipe-color:${batchColor(b.type)}">
+            return `<div class="batch" style="--recipe-color:${batchColor(getRecipe(b.recipeId)?.name || b.type)}">
                 <div class="batch-head">
                     <div>
-                        <div class="batch-type">${icon} ${esc(b.type)}${b.source === 'manuale' ? '<span class="tag">manuale</span>' : ''}</div>
-                        <div class="batch-age">${ageLabel(b.createdAt)} · ${fmtDT(b.createdAt)}</div>
+                        <div class="batch-type">${icon} ${esc(getRecipe(b.recipeId)?.name || b.type)}${b.source === 'manuale' ? '<span class="tag">manuale</span>' : ''}</div>
+                        <div class="batch-age">${ageLabel(b.createdAt)} · ${fmtDT(b.createdAt)}</div><div class="lot-window ${Lab.maturity(b)}"><b>${maturityLabel(b)}</b>${b.readyAt && b.useBy ? `<span>${fmtDT(b.readyAt)} → ${fmtDT(b.useBy)}</span>` : '<span>Imposta le date per migliorare il piano</span>'}</div>
                     </div>
                     <div class="batch-count"><b>${inF}</b><span>/${arr.length}</span></div>
                 </div>
                 <div class="batch-ctrls">
                     <button class="btn minus" onclick="removeBall('${esc(b.id)}')">− 1</button>
                     <button class="btn plus" onclick="addBall('${esc(b.id)}')">+ 1</button>
-                    <button class="btn all" onclick="consumeAll('${esc(b.id)}')">Finita</button>
+                    <button class="btn all" onclick="openMovement('${esc(b.id)}')">Consumo / scarto</button>
                     <button class="btn" onclick="toggleBalls('${esc(b.id)}')">Dettagli</button>
                 </div>
                 <div class="balls hidden" id="balls-${esc(b.id)}">${balls}
-                    <div style="text-align:right;margin-top:10px"><button class="ball-btn danger" onclick="deleteBatch('${esc(b.id)}')">Elimina batch</button></div>
+                    <div style="text-align:right;margin-top:10px"><button class="ball-btn" onclick="openLotDates('${esc(b.id)}')">Modifica date</button></div>
                 </div>
             </div>`;
         }).join('');
@@ -1584,39 +1408,14 @@ function renderFrigo() {
     el.innerHTML = html;
 }
 
-function openManualBatch() {
-    if (!requireWritable()) return;
-    const opts = recipes.map((r) => `<option value="${esc(r.name)}">${esc(r.icon)} ${esc(r.name)}</option>`).join('');
-    openModal(`<h3>Aggiungi batch manuale</h3>
-        <div class="field"><label class="field-label">Tipo impasto</label><select class="select" id="man-type">${opts}<option value="__altro__">Altro…</option></select></div>
-        <div class="field hidden" id="man-other-wrap"><label class="field-label">Nome impasto</label><input class="input" id="man-other"></div>
-        <div class="field"><label class="field-label">Quantità palline</label><input class="input" type="number" id="man-qty" min="1" value="1" inputmode="numeric"></div>
-        <div class="field"><label class="field-label">Nota (opzionale)</label><input class="input" id="man-note"></div>
-        <div class="modal-actions">
-            <button class="btn btn-outline" onclick="closeModal('modal-manual')">Annulla</button>
-            <button class="btn btn-dark" style="width:auto;padding:10px 20px;margin:0" onclick="submitManualBatch()">Aggiungi</button>
-        </div>`, 'modal-manual');
-    $('man-type').onchange = function () { $('man-other-wrap').classList.toggle('hidden', this.value !== '__altro__'); };
-}
 
-async function submitManualBatch() {
-    const sel = $('man-type').value;
-    const type = sel === '__altro__' ? $('man-other').value.trim() : sel;
-    const qty = parseInt($('man-qty').value, 10);
-    const note = $('man-note').value.trim();
-    if (!type) { alert('Indica il tipo di impasto'); return; }
-    if (!qty || qty <= 0) { alert('Quantità non valida'); return; }
-    closeModal('modal-manual');
-    try { await createManualBatch(type, qty, note); toast(`${qty} palline aggiunte al frigo`); }
-    catch (e) { toast('Errore: ' + e.message); }
-}
 
 async function openFrigoLog() {
     let entries = [];
     try { entries = await Store.getLog(50); } catch (e) {}
-    const LABELS = { produzione: '🔵 Produzione', consumo: '🟠 Consumo', aggiunta_manuale: '🟢 Aggiunta', rimozione_manuale: '🔴 Rimozione', correzione: '⚙️ Correzione' };
+    const LABELS = { produzione: '🔵 Produzione', consumo: '🟠 Consumo', scarto: '🗑 Scarto', aggiunta_manuale: '🟢 Aggiunta', rimozione_manuale: '🔴 Rimozione', correzione: '⚙️ Correzione' };
     const rows = entries.length
-        ? entries.map((e) => `<div class="log-entry">${LABELS[e.kind] || esc(e.kind)} · <b>${e.qty || e.count || 0}</b> palline · ${fmtDT(e.at)}${e.note ? ' · ' + esc(e.note) : ''}</div>`).join('')
+        ? entries.map((e) => `<div class="log-entry">${LABELS[e.kind] || esc(e.kind)}${e.undoneAt ? ' (annullato)' : ''} · ${esc(e.type || findBatch(e.batchId)?.type || '')} · <b>${e.qty || e.count || 0}</b> palline · ${fmtDT(e.at)}${e.note ? ' · ' + esc(e.note) : ''}${e.schemaVersion === 2 && !e.undoneAt && ['consumo','scarto','correzione'].includes(e.kind) ? `<button class="btn btn-outline" onclick="undoMovement('${esc(e.id)}')">Annulla</button>` : ''}</div>`).join('')
         : '<p class="card-note">Nessun movimento registrato.</p>';
     openModal(`<h3>Log movimenti</h3><div style="max-height:55vh;overflow:auto">${rows}</div>
         <div class="modal-actions"><button class="btn btn-outline" onclick="closeModal('modal-log')">Chiudi</button></div>`, 'modal-log');
@@ -1651,14 +1450,13 @@ function renderPresetBar() {
 
 async function savePreset() {
     if (!requireWritable()) return;
-    const name = prompt('Nome del preset:');
-    if (!name || !name.trim()) return;
-    const qty = {};
-    readFormQuantities().forEach((i) => { qty[i.id] = i.qty; });
-    if (!presets[currentRecipeId]) presets[currentRecipeId] = [];
-    presets[currentRecipeId].push({ name: name.trim(), qty });
-    try { await Store.setDoc('presets', presets); renderPresetBar(); renderAllPresets(); toast('Preset salvato'); }
-    catch (e) { toast('Errore nel salvataggio'); }
+    const name = prompt('Nome del preset:'); if (!name?.trim()) return;
+    try {
+        const qty = Object.fromEntries(readFormQuantities().map(i => [i.id, i.qty]));
+        const rid = currentRecipeId, p = { id: uid(), name: name.trim(), qty };
+        await Store.updateDoc('presets', doc => ({ ...doc, [rid]: [...(doc?.[rid] || []), p] }));
+        loadPresets(); renderPresetBar(); renderAllPresets(); toast('Preset salvato');
+    } catch (e) { toast(e.message); }
 }
 
 function applyPreset(i) {
@@ -1668,17 +1466,10 @@ function applyPreset(i) {
         const f = $('ing-' + ingId);
         if (f) f.value = p.qty[ingId];
     });
-    toast(`Preset "${p.name}" applicato`);
+    clearResults(); toast(`Preset "${p.name}" applicato`);
 }
 
-async function deletePreset(i) {
-    if (!requireWritable()) return;
-    const list = presets[currentRecipeId] || [];
-    if (!list[i]) return;
-    if (!confirm(`Eliminare il preset "${list[i].name}"?`)) return;
-    list.splice(i, 1);
-    try { await Store.setDoc('presets', presets); } catch (e) {}
-    renderPresetBar(); renderAllPresets();
+async function deletePreset(i) { await deletePresetFrom(currentRecipeId, i);
 }
 
 function renderAllPresets() {
@@ -1699,26 +1490,23 @@ function renderAllPresets() {
 
 async function deletePresetFrom(rid, i) {
     if (!requireWritable()) return;
-    const list = presets[rid] || [];
-    if (!list[i]) return;
-    if (!confirm(`Eliminare il preset "${list[i].name}"?`)) return;
-    list.splice(i, 1);
-    try { await Store.setDoc('presets', presets); } catch (e) {}
-    renderAllPresets(); renderPresetBar();
+    const selected = (Store.getDoc('presets')?.[rid] || [])[i];
+    if (!selected || !confirm(`Eliminare il preset "${selected.name}"?`)) return;
+    try {
+        await Store.updateDoc('presets', doc => ({ ...doc, [rid]: (doc?.[rid] || []).filter(p => selected.id ? p.id !== selected.id : JSON.stringify(p) !== JSON.stringify(selected)) }));
+        loadPresets(); renderPresetBar(); renderAllPresets();
+    } catch (e) { toast(e.message); }
 }
 
 /* — Backup — */
 
 async function exportBackup() {
-    let log = [];
-    try { log = await Store.getLog(200); } catch (e) {}
-    const data = {
-        app: 'pizza-lab-pro', version: 1, exportedAt: new Date().toISOString(),
-        recipes, presets, prices, history: historyCache, batches, frigoLog: log
-    };
-    downloadBlob(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }),
-        `pizza-lab-backup-${todayStr()}.json`);
-    toast('Backup scaricato');
+    try {
+        await flushPrices(); const state = await Store.fullState();
+        const data = backupFromState(state);
+        downloadBlob(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }), `pizza-lab-backup-${todayStr()}.json`);
+        toast('Backup completo scaricato');
+    } catch (e) { toast('Backup non creato: ' + e.message); }
 }
 
 function pickBackupFile() {
@@ -1727,40 +1515,19 @@ function pickBackupFile() {
 }
 
 async function importBackup(input) {
-    const file = input.files && input.files[0];
-    input.value = '';
-    if (!file) return;
-    let data;
-    try { data = JSON.parse(await file.text()); }
-    catch (e) { alert('File non valido.'); return; }
-    if (!data || data.app !== 'pizza-lab-pro') {
-        if (!confirm('Questo file non sembra un backup di Pizza Lab. Provo lo stesso?')) return;
-    }
-    const counts = [
-        data.history ? `${data.history.length} impasti` : null,
-        data.batches ? `${data.batches.length} batch in frigo` : null,
-        data.recipes ? `${data.recipes.length} ricette` : null
-    ].filter(Boolean).join(', ');
-    if (!confirm(`Ripristinare il backup?\n\nContiene: ${counts}.\n\nI dati attuali di storico e frigo verranno sostituiti.`)) return;
-
+    const file = input.files?.[0]; input.value = '';
+    if (!file || !requireWritable()) return;
     try {
-        if (Array.isArray(data.recipes) && data.recipes.length) { recipes = data.recipes; await persistRecipes(); }
-        if (data.presets) { presets = data.presets; await Store.setDoc('presets', presets); }
-        if (data.prices) { prices = data.prices; await Store.setDoc('prices', { items: prices }); }
-        if (Array.isArray(data.history)) {
-            await Store.clearCollection('history');
-            for (const e of data.history) await Store.setItem('history', e.id, e);
-        }
-        if (Array.isArray(data.batches)) {
-            await Store.clearCollection('batches');
-            for (const b of data.batches) await Store.setItem('batches', b.id, b);
-        }
-        currentRecipeId = recipes[0] ? recipes[0].id : null;
-        renderRecipeTabs(); renderRecipeForm(); renderRecipeList(); renderPriceEditor(); renderAllPresets();
-        toast('Backup ripristinato');
-    } catch (e) {
-        alert('Errore nel ripristino: ' + e.message);
-    }
+        if (file.size > 20000000) throw new Error('File troppo grande (massimo 20 MB).');
+        const data = Lab.backup(JSON.parse(await file.text()));
+        if (!confirm(`Ripristinare ${data.history.length} produzioni, ${data.batches.length} lotti e ${data.frigoLog.length} movimenti? Ricette, magazzino e piani verranno sostituiti. Verrà prima scaricata una copia dei dati attuali.`)) return;
+        await flushPrices();
+        const old = backupFromState(await Store.fullState());
+        downloadBlob(new Blob([JSON.stringify(old, null, 2)], { type: 'application/json' }), `pizza-lab-prima-ripristino-${todayStr()}.json`);
+        await Store.restore(data);
+        await bootData(); wireDataListeners(); renderRecipeList(); renderPriceEditor(); renderAllPresets();
+        toast('Backup ripristinato, movimenti inclusi');
+    } catch (e) { alert('Ripristino non eseguito: ' + e.message); }
 }
 
 /* ── 12. CONDIVISIONE IMMAGINE ────────────────────────────────────── */
@@ -1819,7 +1586,7 @@ function buildShareCanvas() {
         x.fillText(`${ing.icon} ${ing.name}`, 100, y + 50);
         x.font = `700 40px ${disp}`;
         x.textAlign = 'right';
-        x.fillText(`${fmtQty(ing.scaled, ing.unit)} ${ing.unit}`, W - 100, y + 50);
+        x.fillText(`${Lab.dose(ing.scaled, ing.unit).value} ${Lab.dose(ing.scaled, ing.unit).unit}`, W - 100, y + 50);
         x.textAlign = 'left';
         y += rowH;
     });
@@ -1881,7 +1648,7 @@ function printRecipe() {
 
 /* ── 13. NAVIGAZIONE E AVVIO ──────────────────────────────────────── */
 
-const SECTIONS = ['ricette', 'storico', 'frigo', 'strumenti'];
+const SECTIONS = ['ricette', 'storico', 'frigo', 'piano', 'magazzino', 'strumenti'];
 
 function showSection(name) {
     SECTIONS.forEach((s) => $('section-' + s).classList.toggle('hidden', s !== name));
@@ -1889,6 +1656,8 @@ function showSection(name) {
     window.scrollTo({ top: 0, behavior: 'auto' });
     if (name === 'storico') renderCharts();
     if (name === 'frigo') renderFrigo();
+    if (name === 'piano') renderPlan();
+    if (name === 'magazzino') renderInventory();
     if (name === 'strumenti') { calcTemp(); renderAllPresets(); renderThemePicker(); renderRecipeList(); renderPriceEditor(); }
 }
 
@@ -1960,26 +1729,8 @@ function googleBtnHTML() {
 
 function signOutUser() {
     if (!confirm('Vuoi uscire dall\'account?')) return;
-    Store.stop();
-    FB.auth.signOut();
-}
-
-/** Copia i dati salvati dalla vecchia versione a codice condiviso. */
-async function migrateOldData(uid) {
-    const OLD_CODE = 'macmiller96';
-    const key = 'pizzalab_migrated_' + uid;
-    if (lsGet(key)) return;
-    try {
-        const oldHistory = await FB.db.collection('users').doc(OLD_CODE).collection('history').get();
-        if (!oldHistory.empty) {
-            const batch = FB.db.batch();
-            oldHistory.forEach((d) => batch.set(FB.db.collection('users').doc(uid).collection('history').doc(d.id), d.data()));
-            await batch.commit();
-        }
-        const oldPresets = await FB.db.collection('users').doc(OLD_CODE).collection('data').doc('presets').get();
-        if (oldPresets.exists) await FB.db.collection('users').doc(uid).collection('data').doc('presets').set(oldPresets.data());
-        lsSet(key, '1');
-    } catch (e) { console.warn('Migrazione saltata:', e); }
+    if (savingProduction) { toast('Attendi il salvataggio.'); return; }
+    flushPrices().then(() => { Store.stop(); localStorage.removeItem('pizzalab_last_uid'); return FB.auth.signOut(); }).catch(e => toast(e.message));
 }
 
 /* — Bootstrap — */
@@ -1997,7 +1748,10 @@ function wireDataListeners() {
         batches = list;
         if (!$('section-frigo').classList.contains('hidden')) renderFrigo();
         syncSaveCassetti();
+        if (!$('section-storico').classList.contains('hidden')) renderCharts();
+        if (!$('section-piano').classList.contains('hidden')) renderPlanResults();
     });
+    Store.watch('frigoLog', () => { if (!$('section-storico').classList.contains('hidden')) renderCharts(); });
 }
 
 async function bootData() {
@@ -2016,7 +1770,7 @@ async function bootData() {
 
 async function startLocalMode(reason) {
     $('overlay').classList.add('hidden');
-    Store.startLocal();
+    try { Store.startLocal(); } catch (e) { alert(e.message); showLoginCard(); return; }
     setSyncStatus('local');
     $('account-box').innerHTML = `<p class="card-note" style="margin:0 0 12px">${esc(reason)}</p>
         ${FB ? '<button class="btn btn-outline" onclick="location.reload()">Accedi con un account</button>' : ''}`;
@@ -2046,8 +1800,7 @@ async function startCloudMode(user) {
             </div>
         </div>
         <button class="btn btn-danger" onclick="signOutUser()">Esci dall'account</button>`;
-    await migrateOldData(user.uid);
-    await Store.startCloud(user);
+    try { await Store.startCloud(user); } catch (e) { toast('Caricamento non riuscito: ' + e.message); showLoginCard(); return; }
     await bootData();
     wireDataListeners();
 }
@@ -2065,14 +1818,25 @@ function boot() {
     $('history-search').oninput = function () { historyQuery = this.value; renderStorico(); };
 
     if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('./sw.js').catch(() => {});
-        // Quando una versione nuova prende il controllo ricarico una volta sola,
-        // così l'aggiornamento arriva senza chiedere un refresh forzato
-        let reloading = false;
+        let updateRequested = false;
+        navigator.serviceWorker.register('./sw.js').then(reg => {
+            const offer = () => {
+                if (!reg.waiting) return;
+                toast('È disponibile un aggiornamento.', { label: 'Aggiorna', run: () => {
+                    if (savingProduction || Object.keys(pendingPrices).length || lastCalc) {
+                        if (!confirm('L’aggiornamento ricarica la pagina. Continuare?')) return;
+                    }
+                    updateRequested = true; reg.waiting.postMessage({ type: 'ACTIVATE_UPDATE' });
+                } });
+            };
+            offer();
+            reg.addEventListener('updatefound', () => {
+                const worker = reg.installing;
+                worker?.addEventListener('statechange', () => { if (worker.state === 'installed' && navigator.serviceWorker.controller) offer(); });
+            });
+        }).catch(() => {});
         navigator.serviceWorker.addEventListener('controllerchange', () => {
-            if (reloading) return;
-            reloading = true;
-            location.reload();
+            if (updateRequested) location.reload();
         });
     }
 
@@ -2111,5 +1875,4 @@ function boot() {
     });
 }
 
-if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
-else boot();
+document.addEventListener('DOMContentLoaded', boot);

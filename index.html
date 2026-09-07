@@ -18,7 +18,7 @@
 <script>try{var t=localStorage.getItem('pizzalab_theme');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}</script>
 
 <link rel="stylesheet" href="fonts.css">
-<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="styles.css?v=14">
 
 <!-- Firebase: se non si carica (nessuna rete) l'app parte comunque in locale -->
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
@@ -98,12 +98,19 @@
                 </div>
                 <div class="field">
                     <label class="field-label" for="save-cassetti">Palline già in frigo</label>
-                    <input class="input sm" type="number" id="save-cassetti" placeholder="0" min="0" inputmode="numeric">
+                    <input class="input sm" type="number" id="save-cassetti" readonly placeholder="0" min="0" inputmode="numeric">
                 </div>
             </div>
+            <p class="card-note">Le palline già in frigo sono conteggiate automaticamente. Per correggerle usa un movimento nel Frigo.</p>
+            <div class="field-row">
+                <div class="field"><label class="field-label" for="save-time">Ora di produzione</label><input class="input" id="save-time" type="time"></div>
+                <div class="field"><label class="field-label" for="save-ready-hours">Utilizzabile dopo (ore)</label><input class="input" id="save-ready-hours" type="number" min="0" max="720" value="24"></div>
+                <div class="field"><label class="field-label" for="save-use-hours">Utilizzare entro (ore dalla produzione)</label><input class="input" id="save-use-hours" type="number" min="0" max="1440" value="72"></div>
+            </div>
+            <p class="card-note">Le ore sono modificabili in base alla tua ricetta. L’ingresso in frigo coincide inizialmente con la produzione e può essere corretto dal lotto.</p>
             <div class="field">
                 <label class="field-label" for="save-note">Note (opzionale)</label>
-                <textarea class="input" id="save-note" placeholder="Es. lievitazione 24h, forno a legna…"></textarea>
+                <textarea class="input" id="save-note" maxlength="2000" placeholder="Es. lievitazione 24h, forno a legna…"></textarea>
             </div>
             <button class="btn btn-dark" id="btn-save" onclick="confirmSave()">Salva impasto</button>
         </div>
@@ -139,7 +146,7 @@
         </div>
 
         <div class="chart-card">
-            <div class="chart-title">Consumi giornalieri</div>
+            <div class="chart-title">Consumi registrati</div><p class="card-note">Consumi effettivi, esclusi scarti e rettifiche. Per i dati precedenti ai movimenti completi sono conteggiate le palline consumate ancora presenti nei lotti.</p>
             <div id="cons-chart" class="chart-bars"></div>
             <div id="cons-legend" class="chart-legend"></div>
             <div id="cons-stats" class="chart-stats"></div>
@@ -160,6 +167,19 @@
             </div>
         </div>
         <div id="frigo-body"></div>
+    </section>
+
+    <section id="section-piano" class="hidden">
+        <div class="section-header"><div><span class="eyebrow">Servizio</span><h1 class="section-title">Piano di produzione</h1></div></div>
+        <div class="card"><div class="field-row"><div class="field"><label class="field-label" for="plan-date">Data del servizio</label><input class="input" id="plan-date" type="date" onchange="renderPlan()"></div><div class="field"><label class="field-label" for="plan-time">Ora del servizio</label><input class="input" id="plan-time" type="time" value="20:00" onchange="savePlanTime()"></div></div>
+        <p class="card-note">Indica quante palline serviranno per ciascun impasto.</p><div id="plan-form"></div></div>
+        <div class="card" id="plan-results"></div>
+        <button class="btn btn-outline" onclick="showSection('magazzino')">Vai alla lista acquisti</button>
+    </section>
+    <section id="section-magazzino" class="hidden">
+        <div class="section-header"><div><span class="eyebrow">Ingredienti</span><h1 class="section-title">Magazzino</h1></div></div>
+        <div class="card"><p class="card-note">Attiva gli ingredienti da monitorare e registra la quantità presente. Salvare una produzione scarica le dosi dal magazzino. Le rettifiche al frigo non restituiscono ingredienti già impastati.</p><div id="inventory-body"></div></div>
+        <div class="card"><h2 class="card-title">Lista acquisti</h2><div id="shopping-list"></div><div class="btn-row"><button class="btn btn-outline" onclick="exportShopping()">Scarica lista</button><button class="btn btn-outline" onclick="showSection('piano')">Modifica piano</button></div></div>
     </section>
 
     <!-- ══════════ STRUMENTI ══════════ -->
@@ -234,11 +254,15 @@
     <button class="nav-item active" data-section="ricette"><span class="nav-icon">🍕</span><span>Ricette</span></button>
     <button class="nav-item" data-section="storico"><span class="nav-icon">📋</span><span>Storico</span></button>
     <button class="nav-item" data-section="frigo"><span class="nav-icon">🧊</span><span>Frigo</span></button>
+    <button class="nav-item" data-section="piano"><span class="nav-icon">📅</span><span>Piano</span></button>
+    <button class="nav-item" data-section="magazzino"><span class="nav-icon">📦</span><span>Scorte</span></button>
     <button class="nav-item" data-section="strumenti"><span class="nav-icon">🔧</span><span>Strumenti</span></button>
 </nav>
 
 <div id="toast-wrap" class="toast-wrap"></div>
 
-<script src="app.js"></script>
+<script src="domain.js?v=14"></script>
+<script src="app.js?v=14"></script>
+<script src="workflows.js?v=14"></script>
 </body>
 </html>
